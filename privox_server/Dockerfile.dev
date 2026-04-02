@@ -1,0 +1,19 @@
+FROM node:18-alpine
+
+# Development image: includes dev dependencies and mounts source for live editing
+WORKDIR /usr/src/app
+
+# Install all dependencies (including dev) for development
+COPY package*.json ./
+RUN npm install
+
+# Copy app source
+COPY . ./
+
+ENV NODE_ENV=development
+
+# Expose dev port
+EXPOSE 3000
+
+# Use the dev script which includes --watch
+CMD ["npm", "run", "dev"]

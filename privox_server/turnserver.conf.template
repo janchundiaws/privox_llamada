@@ -1,0 +1,23 @@
+listening-port=3478
+listening-ip=0.0.0.0
+external-ip=${SERVER_HOST}
+relay-ip=${SERVER_HOST}
+realm=ghox.app
+lt-cred-mech
+user=ghoxuser:GhoxPass123
+verbose
+fingerprint
+min-port=49152
+max-port=65535
+
+## CLI configuration
+cli-password=ChangeThisCliPass123
+
+## TLS certificate / private key files (for future use with domain)
+# certificate-file=/etc/coturn/turn_server_cert.pem
+# private-key=/etc/coturn/turn_server_pkey.pem
+
+verbose
+fingerprint
+min-port=49152
+max-port=65535

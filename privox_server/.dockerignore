@@ -1,0 +1,16 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+README.md
+.env
+mongo-init
+*.sh
+deploy.sh
+ecosystem.config.*
+docker-compose.yml
+Dockerfile
+.DS_Store
+build
+dist
+.vscode

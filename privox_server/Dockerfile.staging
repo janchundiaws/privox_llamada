@@ -1,0 +1,19 @@
+FROM node:18-alpine
+
+# Staging image: smaller than dev, installs only production deps
+WORKDIR /usr/src/app
+
+# Copy package files and install production dependencies
+COPY package*.json ./
+RUN npm install --production
+
+# Copy app source
+COPY . ./
+
+ENV NODE_ENV=staging
+
+# Expose port
+EXPOSE 3000
+
+# Start the app using the production entrypoint (can be changed)
+CMD ["npm", "start"]

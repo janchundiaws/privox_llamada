@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+    <div>
+      <input id="jwt" placeholder="Your JWT token" style="width:400px">
+      <input id="myUserId" placeholder="Your userId" style="width:150px">
+      <input id="targetUserId" placeholder="Target userId" style="width:150px">
+    </div>
+    <div>
+      <label style="margin-right:10px"><input type="checkbox" id="voiceOnlyMode"> Voice-only</label>
+      <button onclick="connect()">🔗 Connect WebSocket</button>
+      <button onclick="getUsers()">👥 Get Users</button>
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Ghox WebRTC Voice Test</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; }
+          .section { margin: 10px 0; padding: 10px; border: 1px solid #ddd; }
+          input { margin: 5px; padding: 8px; }
+          button { margin: 5px; padding: 8px 15px; background: #007cba; color: white; border: none; cursor: pointer; }
+          button:hover { background: #005a87; }
+          video { width: 300px; height: 200px; margin: 10px; border: 1px solid #ccc; }
+          #logs { height: 200px; overflow-y: scroll; border: 1px solid #ccc; padding: 10px; font-family: monospace; font-size: 12px; background: #f9f9f9; }
+          label { font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <div class="section">
+          <h3>🎯 Ghox WebRTC Voice Test Client</h3>
+          <div>
+            <input id="jwt" placeholder="Your JWT token" style="width:420px">
+            <input id="myUserId" placeholder="Your userId" style="width:160px">
+            <input id="targetUserId" placeholder="Target userId" style="width:160px">
+          </div>
+          <div style="margin-top:8px">
+            <label style="margin-right:12px"><input type="checkbox" id="voiceOnlyMode"> Voice-only</label>
+            <button onclick="connect()">🔗 Connect WebSocket</button>
+            <button onclick="testConnectivity()">🔍 Test Network</button>
+            <button onclick="getUsers()">👥 Get Users</button>
+            <button onclick="startCall()">📞 Start Call (WS)</button>
+            <button onclick="startVoiceCall()">🎧 Start Voice Call (REST -> WS)</button>
+            <button onclick="acceptCall()">✅ Accept Call</button>
+            <button onclick="hangup()">❌ Hangup</button>
+          </div>
+        </div>
+
+        <div class="section">
+          <h4>📹 Streams</h4>
+          <video id="localVideo" autoplay muted style="display:inline-block"></video>
+          <video id="remoteVideo" autoplay style="display:inline-block"></video>
+          <audio id="remoteAudio" autoplay controls style="display:block; margin-top:8px"></audio>
+        </div>
+
+        <div class="section">
+          <h4>📋 Logs</h4>
+          <div id="logs"></div>
+          <button onclick="clearLogs()">Clear Logs</button>
+        </div>
+
+        <script>
+          let ws, pc, localStream;
+          let currentCallId;
+          const API_BASE = 'http://localhost:8080';
+          const WS_BASE = 'wss://localhost:8080/ws';
+
+          function log(msg) {
+            const logs = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString();
+            logs.innerHTML += `<div style="margin:2px 0">[${timestamp}] ${msg}</div>`;
+            logs.scrollTop = logs.scrollHeight;
+          }
+
+          function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+          }
+
+          async function testConnectivity() {
+            log('🔍 === NETWORK CONNECTIVITY TEST ===');
+            
+            try {
+              // Test 1: Basic internet connectivity
+              const ipResp = await fetch('https://httpbin.org/ip', { timeout: 5000 });
+              const ipData = await ipResp.json();
+              log(`✅ Public IP: ${ipData.origin}`);
+            } catch (e) {
+              log(`❌ Internet connectivity test failed: ${e.message}`);
+              return;
+            }
+            
+            try {
+              // Test 2: STUN server connectivity
+              log('🧊 Testing STUN servers...');
+              const stunTest = new RTCPeerConnection({ 
+                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] 
+              });
+              
+              let candidateCount = 0;
+              stunTest.onicecandidate = (e) => {
+                if (e.candidate) {
+                  candidateCount++;
+                  const type = e.candidate.candidate.includes('host') ? 'HOST'
+                    : e.candidate.candidate.includes('srflx') ? 'SRFLX' 
+                    : e.candidate.candidate.includes('relay') ? 'RELAY' : 'UNKNOWN';
+                  log(`🧊 STUN test candidate ${candidateCount}: ${type}`);
+                } else {
+                  log(`✅ STUN test complete - Generated ${candidateCount} candidates`);
+                  stunTest.close();
+                }
+              };
+              
+              // Trigger ICE gathering
+              await stunTest.createOffer();
+              
+            } catch (e) {
+              log(`❌ STUN test failed: ${e.message}`);
+            }
+            
+            log('🔍 === END CONNECTIVITY TEST ===');
+          }
+
+          async function getUsers() {
+            const jwt = document.getElementById('jwt').value;
+            if (!jwt) return log('❌ Missing JWT');
+
+            try {
+              const res = await fetch(`${API_BASE}/api/users`, {
+                headers: { Authorization: `Bearer ${jwt}` }
+              });
+              const data = await res.json();
+              log(`👥 Available users: ${JSON.stringify((data.users||[]).map(u => ({id: u.userId, name: u.username})))}`);
+            } catch (e) {
+              log(`❌ Get users error: ${e.message || e}`);
+            }
+          }
+
+          async function connect() {
+            const jwt = document.getElementById('jwt').value;
+            const myUserId = document.getElementById('myUserId').value;
+            if (!jwt || !myUserId) return log('❌ Missing JWT or userId');
+
+            try {
+              // Test básico de conectividad de red
+              log('🌐 Testing network connectivity...');
+              const testResponse = await fetch('https://httpbin.org/ip');
+              const ipInfo = await testResponse.json();
+              log(`🌐 Client public IP: ${ipInfo.origin}`);
+              
+              // Get ICE servers
+              const iceRes = await fetch(`${API_BASE}/api/ice-config`, {
+                headers: { Authorization: `Bearer ${jwt}` }
+              });
+              const { iceServers } = await iceRes.json();
+              log(`🧊 Got ${iceServers.length} ICE servers`);
+
+              // Create peer connection with enhanced ICE gathering
+              pc = new RTCPeerConnection({ 
+                iceServers,
+                iceCandidatePoolSize: 10,  // Pre-gather more candidates
+                bundlePolicy: 'max-bundle',
+                rtcpMuxPolicy: 'require'
+              });
+              // Diagnóstico de tipos de candidates
+              let hostCandidates = 0, srflxCandidates = 0, relayCandidates = 0;
+              
+              pc.onicecandidate = e => {
+                if (e.candidate) {
+                  const target = document.getElementById('targetUserId').value;
+                  if (target && ws && ws.readyState === WebSocket.OPEN) {
+                    // Log detallado para diagnóstico de conectividad
+                    const candidateStr = e.candidate.candidate;
+                    const candidateType = candidateStr.includes('host') ? 'HOST' 
+                      : candidateStr.includes('srflx') ? 'SRFLX'
+                      : candidateStr.includes('relay') ? 'RELAY' : 'UNKNOWN';
+                    
+                    // Contar tipos de candidates
+                    if (candidateType === 'HOST') hostCandidates++;
+                    else if (candidateType === 'SRFLX') srflxCandidates++;
+                    else if (candidateType === 'RELAY') relayCandidates++;
+                    
+                    log(`🧊 ICE candidate (${candidateType}) sent: ${candidateStr.substring(0, 50)}...`);
+                    
+                    ws.send(JSON.stringify({ type: 'ice', to: target, candidate: e.candidate }));
+                  }
+                } else {
+                  log(`🧊 ICE gathering completed - HOST: ${hostCandidates}, SRFLX: ${srflxCandidates}, RELAY: ${relayCandidates}`);
+                  
+                  // Diagnóstico crítico: Si solo tienes HOST candidates, la conexión entre máquinas diferentes fallará
+                  if (srflxCandidates === 0 && relayCandidates === 0) {
+                    log(`⚠️ WARNING: No SRFLX or RELAY candidates generated! Connection between different machines will likely fail.`);
+                    log(`⚠️ This usually indicates STUN server connectivity issues or restrictive firewall.`);
+                  }
+                }
+              };
+              pc.ontrack = e => {
+                const stream = e.streams[0];
+                const hasVideo = stream.getVideoTracks && stream.getVideoTracks().length > 0;
+                if (hasVideo) {
+                  document.getElementById('remoteVideo').srcObject = stream;
+                  document.getElementById('remoteVideo').style.display = 'inline-block';
+                  document.getElementById('remoteAudio').style.display = 'none';
+                  log('📹 Remote video stream received');
+                } else {
+                  document.getElementById('remoteAudio').srcObject = stream;
+                  document.getElementById('remoteAudio').style.display = 'block';
+                  document.getElementById('remoteVideo').style.display = 'none';
+                  log('🎧 Remote audio stream received');
+                }
+              };
+              pc.onconnectionstatechange = () => {
+                log(`🔗 PC state: ${pc.connectionState}`);
+                if (pc.connectionState === 'connected') {
+                  log('🎉 WebRTC connection established successfully!');
+                } else if (pc.connectionState === 'failed') {
+                  log('❌ WebRTC connection failed - usually indicates NAT/firewall issues');
+                  log('❌ Possible causes:');
+                  log('   - Both devices behind symmetric NAT');
+                  log('   - STUN servers not reachable');
+                  log('   - Firewall blocking UDP traffic');
+                  log('   - Need TURN server for relay');
+                } else if (pc.connectionState === 'disconnected') {
+                  log('⚠️ WebRTC connection disconnected');
+                } else if (pc.connectionState === 'connecting') {
+                  log('🔄 Attempting WebRTC connection...');
+                  // Set timeout for connecting state
+                  setTimeout(() => {
+                    if (pc.connectionState === 'connecting') {
+                      log('⏰ Connection timeout: Still connecting after 15 seconds');
+                      log('⏰ This usually indicates ICE candidates are not sufficient for NAT traversal');
+                    }
+                  }, 15000);
+                }
+              };
+              
+              // Agregar logging de ICE connection state
+              pc.oniceconnectionstatechange = () => {
+                log(`🧊 ICE state: ${pc.iceConnectionState}`);
+                if (pc.iceConnectionState === 'failed') {
+                  log('❌ ICE connection failed - NAT/firewall blocking connection');
+                } else if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+                  log('🎉 ICE connection established!');
+                }
+              };
+
+              // Get local media (respect voice-only choice)
+              const voiceOnly = document.getElementById('voiceOnlyMode').checked;
+              localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: voiceOnly ? false : { width: 640, height: 480 } });
+              document.getElementById('localVideo').srcObject = localStream;
+              localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+              log('📹 Local media added');
+
+              // Connect WebSocket (token in query param)
+              ws = new WebSocket(`${WS_BASE}?token=${jwt}`);
+              ws.onopen = () => log('🔗 WebSocket connected');
+              ws.onclose = e => log(`❌ WebSocket disconnected: ${e.code} ${e.reason}`);
+              ws.onerror = e => log(`❌ WebSocket error: ${e}`);
+              ws.onmessage = handleMessage;
+
+            } catch (e) {
+              log(`❌ Connect error: ${e.message || e}`);
+            }
+          }
+
+          async function handleMessage(ev) {
+            let msg;
+            try {
+              msg = JSON.parse(ev.data);
+            } catch (e) {
+              return log('❌ Invalid JSON message received');
+            }
+
+            log(`📨 Received: ${msg.type} ${msg.callId ? `(${msg.callId})` : ''}`);
+
+            if (msg.type === 'incoming-call') {
+              currentCallId = msg.callId;
+              log(`📞 Incoming call from ${msg.from}, callId: ${msg.callId}`);
+              // Show alert for manual acceptance. If accepted, prepare local audio if voice-only.
+              if (confirm(`Incoming call from ${msg.from}. Accept?`)) {
+                const incomingVoiceOnly = msg.meta && msg.meta.voiceOnly;
+                if (incomingVoiceOnly) {
+                  try {
+                    const s = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                    // replace video senders if any
+                    if (pc) {
+                      pc.getSenders().forEach(sender => {
+                        if (sender.track && sender.track.kind === 'video') {
+                          try { pc.removeTrack(sender); } catch (e) {}
+                        }
+                      });
+                      s.getTracks().forEach(t => pc.addTrack(t, s));
+                    }
+                    localStream = s;
+                    document.getElementById('localVideo').srcObject = localStream;
+                  } catch (e) {
+                    log('❌ Could not get microphone: ' + (e.message || e));
+                  }
+                }
+                acceptCall();
+              } else {
+                rejectCall();
+              }
+            }
+
+            if (msg.type === 'call-accepted') {
+              log('✅ Call accepted by peer');
+            }
+
+            if (msg.type === 'call-rejected') {
+              log('❌ Call rejected by peer');
+            }
+
+            if (msg.type === 'offer') {
+              try {
+                await pc.setRemoteDescription({ type: 'offer', sdp: msg.sdp });
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+                ws.send(JSON.stringify({ type: 'answer', to: msg.from, sdp: answer.sdp }));
+                log('📤 Answer sent');
+              } catch (e) {
+                log(`❌ Offer handling error: ${e.message || e}`);
+              }
+            }
+
+            if (msg.type === 'answer') {
+              try {
+                await pc.setRemoteDescription({ type: 'answer', sdp: msg.sdp });
+                log('📥 Answer received and applied');
+              } catch (e) {
+                log(`❌ Answer error: ${e.message || e}`);
+              }
+            }
+
+            if (msg.type === 'ice') {
+              try {
+                // Soporte para ambos formatos: objeto candidate o campos directos
+                let candidateObj;
+                if (msg.candidate && typeof msg.candidate === 'object') {
+                  // Formato nuevo: { candidate: { candidate: "...", sdpMid: "...", sdpMLineIndex: 0 } }
+                  candidateObj = msg.candidate;
+                } else {
+                  // Formato legacy: { candidate: "...", sdpMid: "...", sdpMLineIndex: 0 }
+                  candidateObj = {
+                    candidate: msg.candidate,
+                    sdpMid: msg.sdpMid,
+                    sdpMLineIndex: msg.sdpMLineIndex
+                  };
+                }
+                
+                await pc.addIceCandidate(candidateObj);
+                
+                // Log detallado del candidate recibido para diagnóstico
+                const candidateStr = candidateObj.candidate;
+                const candidateType = candidateStr.includes('host') ? 'HOST' 
+                  : candidateStr.includes('srflx') ? 'SRFLX'
+                  : candidateStr.includes('relay') ? 'RELAY' : 'UNKNOWN';
+                
+                log(`🧊 ICE candidate added (${candidateType}): ${candidateStr.substring(0, 60)}...`);
+              } catch (e) {
+                log(`❌ ICE error: ${e.message || e}`);
+                log(`❌ ICE details - msg.candidate: ${JSON.stringify(msg.candidate)}`);
+              }
+            }
+
+            if (msg.type === 'hangup') {
+              log('❌ Call ended by peer');
+              hangup();
+            }
+
+            if (msg.type === 'peer-offline') {
+              log(`❌ Peer ${msg.to} is offline`);
+            }
+          }
+
+          async function startCall() {
+            const jwt = document.getElementById('jwt').value;
+            const targetUserId = document.getElementById('targetUserId').value;
+
+            if (!ws || ws.readyState !== WebSocket.OPEN) return log('❌ WebSocket not connected');
+            if (!targetUserId) return log('❌ Set target userId first');
+            if (!pc) return log('❌ Connect first');
+
+            try {
+              // Send call-init via WebSocket
+              ws.send(JSON.stringify({ type: 'call-init', to: targetUserId, meta: { displayName: 'Test Call', from: document.getElementById('myUserId').value } }));
+              log('📞 Call initiated via WebSocket');
+
+              // Create and send offer
+              const offer = await pc.createOffer();
+              await pc.setLocalDescription(offer);
+              ws.send(JSON.stringify({ type: 'offer', to: targetUserId, sdp: offer.sdp }));
+              log('📤 Offer sent');
+
+            } catch (e) {
+              log(`❌ Start call error: ${e.message || e}`);
+            }
+          }
+
+          function acceptCall() {
+            if (!currentCallId) return log('❌ No incoming call');
+            if (!ws || ws.readyState !== WebSocket.OPEN) return log('❌ WebSocket not connected');
+
+            ws.send(JSON.stringify({ type: 'call-accept', callId: currentCallId, from: document.getElementById('myUserId').value }));
+            log('✅ Call accepted');
+          }
+
+          function rejectCall() {
+            if (!currentCallId) return log('❌ No incoming call');
+            if (!ws || ws.readyState !== WebSocket.OPEN) return log('❌ WebSocket not connected');
+
+            ws.send(JSON.stringify({ type: 'call-reject', callId: currentCallId, from: document.getElementById('myUserId').value }));
+            log('❌ Call rejected');
+            currentCallId = null;
+          }
+
+          function hangup() {
+            if (currentCallId && ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'hangup', callId: currentCallId, to: document.getElementById('targetUserId').value }));
+            }
+
+            if (pc) {
+              pc.close();
+              pc = null;
+            }
+            if (localStream) {
+              localStream.getTracks().forEach(track => track.stop());
+              localStream = null;
+            }
+
+            document.getElementById('localVideo').srcObject = null;
+            document.getElementById('remoteVideo').srcObject = null;
+            document.getElementById('remoteAudio').srcObject = null;
+            currentCallId = null;
+
+            log('❌ Call ended');
+          }
+
+          // Start voice-only call via REST endpoint then send offer over WS
+          async function startVoiceCall() {
+            const jwt = document.getElementById('jwt').value;
+            const targetUserId = document.getElementById('targetUserId').value;
+            const myUserId = document.getElementById('myUserId').value;
+
+            if (!jwt) return log('❌ Missing JWT');
+            if (!targetUserId) return log('❌ Missing target userId');
+            if (!ws || ws.readyState !== WebSocket.OPEN) return log('❌ WebSocket not connected');
+
+            try {
+              // Create call record via REST
+              const res = await fetch(`${API_BASE}/api/calls/voice`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${jwt}` },
+                body: JSON.stringify({ to: targetUserId, meta: { initiatedBy: myUserId, voiceOnly: true } })
+              });
+              const data = await res.json();
+              if (!res.ok) {
+                log('❌ Voice call create failed: ' + JSON.stringify(data));
+                return;
+              }
+              currentCallId = data.callId;
+              log('📞 Voice call record created, callId: ' + currentCallId);
+
+              // Ensure pc exists and is configured for audio-only
+              if (!pc) {
+                const iceRes = await fetch(`${API_BASE}/api/ice-config`, { headers: { Authorization: `Bearer ${jwt}` } });
+                const { iceServers } = await iceRes.json();
+                pc = new RTCPeerConnection({ iceServers });
+                pc.onicecandidate = e => {
+                  if (e.candidate) {
+                    ws.send(JSON.stringify({ type: 'ice', to: targetUserId, candidate: e.candidate }));
+                  }
+                };
+                pc.ontrack = e => {
+                  const stream = e.streams[0];
+                  document.getElementById('remoteAudio').srcObject = stream;
+                  document.getElementById('remoteAudio').style.display = 'block';
+                  document.getElementById('remoteVideo').style.display = 'none';
+                  log('🎧 Remote audio stream received');
+                };
+              }
+
+              // get audio-only local media
+              if (!localStream || (localStream.getVideoTracks && localStream.getVideoTracks().length > 0)) {
+                try {
+                  localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                  document.getElementById('localVideo').srcObject = localStream;
+                  localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+                  log('🎤 Local audio track added');
+                } catch (e) {
+                  log('❌ Could not get microphone: ' + (e.message || e));
+                  return;
+                }
+              }
+
+              // Create and send offer
+              const offer = await pc.createOffer();
+              await pc.setLocalDescription(offer);
+              ws.send(JSON.stringify({ type: 'offer', to: targetUserId, sdp: offer.sdp }));
+              log('📤 Offer (voice) sent');
+
+            } catch (e) {
+              log('❌ startVoiceCall error: ' + (e.message || e));
+            }
+          }
+
+          // Auto-fill demo data
+          window.addEventListener('load', () => {
+            log('🚀 Ghox WebRTC Test Client loaded');
+            log('📋 Steps: 1) Get JWT from /api/auth/register or /api/auth/login, 2) Fill JWT + userIds, 3) Connect, 4) Test call');
+          });
+        </script>
+      </body>
+      </html>

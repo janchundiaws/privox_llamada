@@ -1,0 +1,702 @@
+openapi: 3.0.0
+info:
+  title: Privox Server API
+  version: "1.0.0"
+  description: |
+    Documentación OpenAPI (Swagger) de la API del servidor de llamadas (Privox Server).
+    Rutas protegidas requieren header `Authorization: Bearer <token>`.
+servers:
+  - url: https://app.privox-server.orb.local
+  - url: https://app-staging.privox-server.orb.local
+  - url: https://app-dev.privox-server.orb.local
+  - url: https://privox-server-hzis.onrender.com
+  - url: https://privox.tech-services-explore.com
+  - url: http://0.0.0.0:3003
+tags:
+  - name: Settings
+    description: Configuración general y salud del servidor
+  - name: Auth
+    description: Autenticación y sesión
+  - name: Users
+    description: Gestión de usuarios
+  - name: Requests
+    description: Solicitudes y contactos
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          description: userId público (string de 9 dígitos)
+        username:
+          type: string
+        displayName:
+          type: string
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+    Call:
+      type: object
+      properties:
+        callId:
+          type: string
+        from:
+          type: string
+        to:
+          type: string
+        status:
+          type: string
+          enum: [ringing, in_call, ended, missed, rejected]
+        meta:
+          type: object
+    Request:
+      type: object
+      properties:
+        _id:
+          type: string
+          description: ID único de la solicitud
+        from:
+          type: string
+          description: ID del usuario que envía la solicitud
+        to:
+          type: string
+          description: ID del usuario que recibe la solicitud
+        status:
+          type: string
+          enum: [pending, accepted, rejected, cancelled]
+          description: Estado de la solicitud
+        requestedAt:
+          type: string
+          format: date-time
+          description: Fecha en que se creó la solicitud
+        meta:
+          type: object
+          description: Información adicional
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+paths:
+  /health:
+    get:
+      tags: [Settings]
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Registrar usuario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                displayName:
+                  type: string
+              required:
+                - username
+      responses:
+        '200':
+          description: Token y usuario creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login con username
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                deviceId:
+                  type: string
+              required:
+                - username
+      responses:
+        '200':
+          description: Token y usuario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Username requerido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Usuario no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/auth/username:
+    patch:
+      tags: [Auth]
+      summary: Cambiar nombre de usuario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+              required:
+                - username
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Nombre de usuario cambiado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/users/me:
+    get:
+      tags: [Users]
+      summary: Obtener el usuario autenticado
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Datos del usuario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags: [Users]
+      summary: Eliminar el usuario autenticado
+      description: |
+        Elimina el usuario actual (según el token JWT) y todas sus relaciones (requests).
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Usuario eliminado correctamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Usuario no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno al eliminar usuario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'                
+  /api/users/find:
+    post:
+      tags: [Users]
+      summary: Buscar usuarios por lista de usernames
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                usernames:
+                  type: array
+                  items:
+                    type: string
+              required:
+                - usernames
+      responses:
+        '200':
+          description: Usuarios encontrados
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  found:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+        '400':
+          description: usernames requerido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/users:
+    get:
+      tags: [Users]
+      summary: Lista de usuarios públicos (excluye al actual)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de usuarios
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/users/usersadd:
+    get:
+      tags: [Users]
+      summary: Lista de usuarios a los que puedo agregar a mi cuenta
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de usuarios que puedo agregado a mi cuenta
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse' 
+  /api/users/usersaccount:
+    get:
+      tags: [Users]
+      summary: Lista de usuarios que tengo agregado a mi cuenta
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de usuarios que tenggo agregado a mi cuenta
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'  
+  /api/users/{id}:
+    get:
+      tags: [Users]
+      summary: Obtener usuario público por id
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Usuario
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+        '404':
+          description: Usuario no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/ice-config:
+    get:
+      tags: [Settings]
+      summary: Obtener configuración ICE (STUN/TURN)
+      responses:
+        '200':
+          description: iceServers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  iceServers:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        urls:
+                          type: string
+                        username:
+                          type: string
+                        credential:
+                          type: string
+  /api/calls/start:
+    post:
+      tags: [Settings]
+      summary: Iniciar llamada
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                to:
+                  type: string
+                meta:
+                  type: object
+              required:
+                - to
+      responses:
+        '201':
+          description: Call creado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  callId:
+                    type: string
+                  call:
+                    $ref: '#/components/schemas/Call'
+        '400':
+          description: Missing fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/requests:
+    post:
+      tags: [Requests]
+      summary: Crear una nueva solicitud (request)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                to:
+                  type: string
+                  description: userId del receptor
+                meta:
+                  type: object
+              required:
+                - to
+      responses:
+        '201':
+          description: Request creada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request:
+                    $ref: '#/components/schemas/Request'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      tags: [Requests]
+      summary: Listar contactos relacionadas con el usuario (entrantes/salientes) pendientes y aceptados
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: direction
+          schema:
+            type: string
+            enum: [incoming, outgoing]
+          description: Filtrar por solicitudes entrantes u salientes
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, accepted]
+          description: Filtrar por estado
+      responses:
+        '200':
+          description: Lista de requests
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requests:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Request'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/requests/{id}:
+    patch:
+      tags: [Requests]
+      summary: Actualizar el estado de una solicitud
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  description: Estado nuevo ('accepted','rejected','cancelled','pending')
+              required:
+                - status
+      responses:
+        '200':
+          description: Request actualizada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request:
+                    $ref: '#/components/schemas/Request'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags: [Requests]
+      summary: Eliminar una solicitud
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  description: Estado nuevo ('accepted','rejected','cancelled','pending')
+              required:
+                - status
+      responses:
+        '200':
+          description: Request actualizada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request:
+                    $ref: '#/components/schemas/Request'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/requests/contact/{id}:
+    delete:
+      tags: [Requests]
+      summary: Eliminar un contacto (solicitud aceptada)
+      security:
+        - bearerAuth: []
+      parameters: 
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responseBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  description: Estado nuevo ('accepted','rejected','cancelled','pending')
+              required:
+                - status
+      responses:
+        '200':
+          description: Contacto eliminado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+        '403':  
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Contacto no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components_extra: []
+
