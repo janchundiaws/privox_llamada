@@ -58,13 +58,41 @@ services:
       context: .
       dockerfile: Dockerfile.dev
     image: ghox_server:dev
-    ports:
-      - "3002:3000"
+    # ports:
+    #   - "3002:3000"
     env_file:
       - .env.dev
     depends_on:
       - mongo_ghox
       - coturn
+    labels:
+      - "traefik.enable=true"
+
+      # -------------------------
+      # HTTP → HTTPS
+      # -------------------------
+      - "traefik.http.routers.privoxapp-http.rule=Host(`william-as.com`) && PathPrefix(`/privoxapp`)"
+      - "traefik.http.routers.privoxapp-http.entrypoints=web"
+      - "traefik.http.routers.privoxapp-http.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+
+      # -------------------------
+      # HTTPS
+      # -------------------------
+      - "traefik.http.routers.privoxapp.rule=Host(`william-as.com`) && PathPrefix(`/privoxapp`)"
+      - "traefik.http.routers.privoxapp.entrypoints=websecure"
+      - "traefik.http.routers.privoxapp.tls.certresolver=myresolver"
+
+      # -------------------------
+      # Strip Prefix /privoxapp
+      # -------------------------
+      - "traefik.http.routers.privoxapp.middlewares=privoxapp-strip"
+      - "traefik.http.middlewares.privoxapp-strip.stripprefix.prefixes=/privoxapp"
+
+      # -------------------------
+      # Servicio interno
+      # -------------------------
+      - "traefik.http.services.privoxapp.loadbalancer.server.port=80"
 
   app_staging:
     build:

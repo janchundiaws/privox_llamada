@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_voice_processor/flutter_voice_processor.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:privox/main.dart';
@@ -46,12 +48,19 @@ class _CallScreenState extends State<CallScreen> {
   bool _isNear = false;
   bool _isProximityWakeLockEnabled = false;
 
+  // Voice Processor (solo Android)
+  static const int _vpFrameLength  = 512;
+  static const int _vpSampleRate   = 16000;
+  VoiceProcessorFrameListener? _vpFrameListener;
+  VoiceProcessorErrorListener? _vpErrorListener;
+
   @override
   void initState() {
     super.initState();
     _initRenderers();
     _startRemoteAudioStats();
     _initProximitySensor();
+    _startVoiceProcessorAndroid();
     flutterLocalNotificationsPlugin.cancelAll();
     // Bloquear orientación en landscape
     SystemChrome.setPreferredOrientations([
@@ -75,6 +84,62 @@ class _CallScreenState extends State<CallScreen> {
       print("Error _initRenderers" + e.toString());
     }
   }
+
+  // ── Voice Processor (Android only) ─────────────────────────────────────────
+
+  Future<void> _startVoiceProcessorAndroid() async {
+    if (!Platform.isAndroid) return;
+    try {
+      final vp = VoiceProcessor.instance;
+
+      if (vp == null) {
+        print('⚠️ VoiceProcessor no disponible en este dispositivo');
+        return;
+      }
+
+      _vpFrameListener = (List<int> frame) {
+        // Aquí se reciben frames PCM de 16-bit a 16kHz.
+        // Cada frame contiene _vpFrameLength muestras.
+        // Se puede usar para: VAD, niveles de volumen, noise cancellation, etc.
+        if (!mounted) return;
+        // Ejemplo: calcular nivel de energía del frame
+        // final energy = frame.fold<double>(0, (sum, s) => sum + s * s) / frame.length;
+      };
+
+      _vpErrorListener = (VoiceProcessorException error) {
+        print('❌ VoiceProcessor error: \${error.message}');
+      };
+
+      vp.addFrameListener(_vpFrameListener!);
+      vp.addErrorListener(_vpErrorListener!);
+
+      final hasPermission = await vp.hasRecordAudioPermission();
+      if (hasPermission == true) {
+        await vp.start(_vpFrameLength, _vpSampleRate);
+        print('🎙️ VoiceProcessor iniciado (Android)');
+      } else {
+        print('⚠️ VoiceProcessor: sin permiso de micrófono');
+      }
+    } catch (e) {
+      print('❌ Error iniciando VoiceProcessor: \$e');
+    }
+  }
+
+  Future<void> _stopVoiceProcessorAndroid() async {
+    if (!Platform.isAndroid) return;
+    try {
+      final vp = VoiceProcessor.instance;
+      if (vp == null) return;
+      if (_vpFrameListener != null) vp.removeFrameListener(_vpFrameListener!);
+      if (_vpErrorListener != null) vp.removeErrorListener(_vpErrorListener!);
+      if (vp.isRecording == true) await vp.stop();
+      print('🛑 VoiceProcessor detenido (Android)');
+    } catch (e) {
+      print('❌ Error deteniendo VoiceProcessor: \$e');
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
 
   void _initProximitySensor() async {
     try {
@@ -125,6 +190,7 @@ class _CallScreenState extends State<CallScreen> {
   void dispose() async {
     // Deshabilitar el wake lock de proximidad
     await _disableProximityWakeLock();
+    await _stopVoiceProcessorAndroid();
     
     // Cancelar suscripción al sensor
     await _proximitySubscription?.cancel();

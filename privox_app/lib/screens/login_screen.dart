@@ -52,7 +52,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _creacionAutomaticaRealizada = false;
       _creacionAutomatica = 'Creando usuario automáticamente...';
     });
-
+    
     await _createUserAutomatically();
 
     final refreshedPrefs = await SharedPreferences.getInstance();
@@ -60,6 +60,11 @@ class _LoginScreenState extends State<LoginScreen> {
     if (mounted && newUsername.isNotEmpty) {
       setState(() {
         _controller.text = newUsername;
+      });
+    }else{
+      setState(() {
+        _creacionAutomaticaRealizada = true;
+        _creacionAutomatica = 'Error al crear usuario automáticamente';
       });
     }
   }

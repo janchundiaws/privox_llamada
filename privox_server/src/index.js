@@ -47,7 +47,7 @@ app.use("/api/requests", requestsRouter);
 const server = http.createServer(app);
 initSignaling(server);
 
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT;
 
 connectDB().then(() => {
   server.listen(PORT, "0.0.0.0", () =>

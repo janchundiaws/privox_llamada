@@ -1,11 +1,9 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:privox/screens/login_screen.dart';
 import 'package:privox/services/socket_service.dart';
-import 'package:privox/utils/auth.dart';
 import 'package:privox/utils/prefs.dart';
-import 'package:privox/widgets/logout_button.dart';
+import 'package:privox/widgets/privox_bottom_menu.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'dart:convert';
@@ -100,7 +98,7 @@ class _UsersListSolScreentate extends State<UsersListSolScreen> {
             if (from != null && from is Map) {
             var user = User.fromMap(from);
             user.requestId = req['_id'].toString();
-            if (from is Map) users.add(user);
+            users.add(user);
             }
           }
            setState(() {
@@ -318,6 +316,7 @@ class _UsersListSolScreentate extends State<UsersListSolScreen> {
             //   ),
             // ],
           ),
+          bottomNavigationBar: const PrivoxBottomMenu(currentIndex: 2),
           body: Column(
             children: [
               Padding(
@@ -398,6 +397,9 @@ class _UsersListSolScreentate extends State<UsersListSolScreen> {
                             padding: const EdgeInsets.all(24.0),
                             child: Column(
                               children: [
+                                const Icon(Icons.error_outline,
+                                color: Colors.red, size: 48),
+                                const SizedBox(height: 12),
                                 Text(_error!, textAlign: TextAlign.center),
                                 const SizedBox(height: 12),
                                 ElevatedButton(onPressed: _fetchRequests, child: const Text('Reintentar')),
