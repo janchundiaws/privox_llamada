@@ -1,49 +1,90 @@
 import 'package:flutter/material.dart';
 import 'package:privox/screens/users_list_add_screen.dart';
-import 'package:privox/screens/users_list_screen.dart';
 import 'package:privox/screens/users_list_sol_screen.dart';
 import 'package:privox/screens/welcome_screen.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
+class PrivoxTabsScreen extends StatefulWidget {
+  final String username;
+  final String userId;
+  final String deviceId;
+
+  const PrivoxTabsScreen({
+    super.key,
+    required this.username,
+    required this.userId,
+    required this.deviceId,
+  });
+
+  @override
+  State<PrivoxTabsScreen> createState() => _PrivoxTabsScreenState();
+}
+
+class _PrivoxTabsScreenState extends State<PrivoxTabsScreen> {
+  int _selectedIndex = 0;
+  late final PageController _pageController;
+  late final List<Widget> _widgetOptions;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+    _widgetOptions = <Widget>[
+      WelcomeScreen(
+        username: widget.username,
+        userId: widget.userId,
+        deviceId: widget.deviceId,
+      ),
+      const UsersListAddScreen(),
+      const UsersListSolScreen(),
+    ];
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+    _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
+        children: _widgetOptions,
+      ),
+      bottomNavigationBar: PrivoxBottomMenu(
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+      ),
+    );
+  }
+}
 
 class PrivoxBottomMenu extends StatelessWidget {
   final int currentIndex;
+  final ValueChanged<int> onTap;
 
   const PrivoxBottomMenu({
     super.key,
     required this.currentIndex,
+    required this.onTap,
   });
-
-  Future<void> _onTap(BuildContext context, int index) async {
-    if (index == currentIndex) return;
-
-    //obtener informacion del usuario desde SharedPreferences
-    final prefs = await SharedPreferences.getInstance();
-    String username = prefs.getString('username') ?? '';
-    String userId = prefs.getString('userId') ?? '';
-    String deviceId = prefs.getString('deviceId') ?? '';
-
-
-    switch (index) {
-      case 0:
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => WelcomeScreen(
-              username: username,
-              userId: userId,
-              deviceId: deviceId),)
-        );
-        break;
-      case 1:
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const UsersListAddScreen()),
-        );
-        break;
-      case 2:
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const UsersListSolScreen()),
-        );
-        break;
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,7 +104,7 @@ class PrivoxBottomMenu extends StatelessWidget {
         top: false,
         child: NavigationBar(
           selectedIndex: currentIndex,
-          onDestinationSelected: (index) => _onTap(context, index),
+          onDestinationSelected: onTap,
           backgroundColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,
           elevation: 0,

@@ -3,7 +3,6 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:privox/services/socket_service.dart';
 import 'package:privox/utils/prefs.dart';
-import 'package:privox/widgets/privox_bottom_menu.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'dart:convert';
@@ -291,7 +290,7 @@ class _UsersListSolScreentate extends State<UsersListSolScreen> {
             title: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('Solicitudes de contacto'),
+                const Text('Solicitudes'),
                 const SizedBox(width: 8),
                 Baseline(
                   baseline: 20,
@@ -304,24 +303,12 @@ class _UsersListSolScreentate extends State<UsersListSolScreen> {
                 ),
               ],
             ),
-            // actions: [
-            //   LogoutButton(
-            //     onLogout: () async {
-            //       await logoutClearPrefs();
-            //       Navigator.of(context).pushAndRemoveUntil(
-            //         MaterialPageRoute(builder: (_) => const LoginScreen()),
-            //         (route) => false,
-            //       );
-            //     },
-            //   ),
-            // ],
           ),
-          bottomNavigationBar: const PrivoxBottomMenu(currentIndex: 2),
-          body: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Container(
+          body: Padding(
+            padding: const EdgeInsets.symmetric( horizontal: 20.0, vertical: 16.0),
+            child: Column(
+              children: [
+                Container(
                   decoration: BoxDecoration(
                     color: Colors.grey.shade200,
                     borderRadius: BorderRadius.circular(12),
@@ -380,83 +367,83 @@ class _UsersListSolScreentate extends State<UsersListSolScreen> {
                     ],
                   ),
                 ),
-              ),
-              Expanded(
-                child: RefreshIndicator(
-                  onRefresh: _fetchRequests,
-                  child: Builder(builder: (context) {
-                    if (_loading) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-
-                    if (_error != null) {
-                      return ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.all(24.0),
-                            child: Column(
-                              children: [
-                                const Icon(Icons.error_outline,
-                                color: Colors.red, size: 48),
-                                const SizedBox(height: 12),
-                                Text(_error!, textAlign: TextAlign.center),
-                                const SizedBox(height: 12),
-                                ElevatedButton(onPressed: _fetchRequests, child: const Text('Reintentar')),
-                              ],
-                            ),
-                          ),
-                        ],
-                      );
-                    }
-
-                    if (_users.isEmpty) {
-                      return ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        children: [
-                          SizedBox(height: 80),
-                          Center(child: Text(_showIncoming?'No hay solicitudes enviadas':'No hay solicitudes recibidas')),
-                        ],
-                      );
-                    }
-
-                    return ListView.separated(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      itemCount: _users.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final user = _users[index];
-                        final username = user.username.isNotEmpty ? user.username : user.displayName;
-                        final avatarLetter = (username.isNotEmpty ? username[0] : (user.username.isNotEmpty ? user.username[0] : '?')).toUpperCase();
-                        final subtitle = '${user.displayName}${user.userId.isNotEmpty ? ' · ${user.userId}' : ''}';
-
-                        // Generar color aleatorio
-                        final random = Random();
-                        final bgColor = Colors.primaries[random.nextInt(Colors.primaries.length)];
-
-                        return ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: bgColor,
-                            child: Text(
-                              avatarLetter,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: _fetchRequests,
+                    child: Builder(builder: (context) {
+                      if (_loading) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+            
+                      if (_error != null) {
+                        return ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.all(24.0),
+                              child: Column(
+                                children: [
+                                  const Icon(Icons.error_outline,
+                                  color: Colors.red, size: 48),
+                                  const SizedBox(height: 12),
+                                  Text(_error!, textAlign: TextAlign.center),
+                                  const SizedBox(height: 12),
+                                  ElevatedButton(onPressed: _fetchRequests, child: const Text('Reintentar')),
+                                ],
                               ),
                             ),
-                          ),
-                          title: Text(username),
-                          subtitle: Text(subtitle),
-                          trailing: const Icon(Icons.more_vert),
-                          onTap: () => _showCallOptions(context, user),
+                          ],
                         );
-                      },
-                    );
-                  }),
+                      }
+            
+                      if (_users.isEmpty) {
+                        return ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            SizedBox(height: 80),
+                            Center(child: Text(_showIncoming?'No hay solicitudes enviadas':'No hay solicitudes recibidas')),
+                          ],
+                        );
+                      }
+            
+                      return ListView.separated(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        itemCount: _users.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final user = _users[index];
+                          final username = user.username.isNotEmpty ? user.username : user.displayName;
+                          final avatarLetter = (username.isNotEmpty ? username[0] : (user.username.isNotEmpty ? user.username[0] : '?')).toUpperCase();
+                          final subtitle = '${user.displayName}${user.userId.isNotEmpty ? ' · ${user.userId}' : ''}';
+            
+                          // Generar color aleatorio
+                          final random = Random();
+                          final bgColor = Colors.primaries[random.nextInt(Colors.primaries.length)];
+            
+                          return ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: bgColor,
+                              child: Text(
+                                avatarLetter,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            title: Text(username),
+                            subtitle: Text(subtitle),
+                            trailing: const Icon(Icons.more_vert),
+                            onTap: () => _showCallOptions(context, user),
+                          );
+                        },
+                      );
+                    }),
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
+          ),
         );
       } 
     );

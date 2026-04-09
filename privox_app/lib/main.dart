@@ -1,12 +1,11 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:privox/screens/welcome_screen.dart';
 import 'package:privox/screens/login_screen.dart';
 import 'package:privox/services/socket_service.dart';
 import 'package:privox/variables.dart';
+import 'package:privox/widgets/privox_bottom_menu.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'utils/prefs.dart';
@@ -144,7 +143,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       title: 'Comunicate - Login',
       theme: ThemeData(primarySwatch: Colors.blue),
       home: logged
-          ? WelcomeScreen(username: widget.savedUsername!, userId: widget.savedUserId!, deviceId: widget.deviceId!)
+          ? PrivoxTabsScreen(username: widget.savedUsername!, userId: widget.savedUserId!, deviceId: widget.deviceId!)
           : const LoginScreen(),
     );
   }

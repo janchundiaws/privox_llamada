@@ -6,13 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:privox/main.dart';
 import 'package:privox/screens/call_voice/calling_screen.dart';
-import 'package:privox/screens/login_screen.dart';
 import 'package:privox/screens/settings_screen.dart';
 import 'package:privox/services/socket_service.dart';
-import 'package:privox/utils/auth.dart';
 import 'package:privox/utils/prefs.dart';
 import 'package:privox/variables.dart';
-import 'package:privox/widgets/privox_bottom_menu.dart';
 import 'package:provider/provider.dart';
 import 'package:rflutter_alert/rflutter_alert.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -82,9 +79,13 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     getPreferencesInit();
     _searchController.addListener(_onSearchChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      print("janchundia la maravilla ==>");
+      print(STAY_ONLINE);
+
+
       if (STAY_ONLINE) {
-        final socketService =
-            Provider.of<SocketService>(context, listen: false);
+        final socketService = Provider.of<SocketService>(context, listen: false);
+        print(socketService.isConnected);
         socketService.disconnect();
         socketService.connect();
       }
@@ -411,8 +412,6 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     }
   }
 
-  // ── build ─────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
     final initials =
@@ -421,8 +420,10 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
     return Consumer<SocketService>(
       builder: (context, socketService, _) {
+        print("isaias 1");
+        print(socketService.isConnected);
+        print("isaias 2");
         return Scaffold(
-          // ── AppBar ──────────────────────────────────────────────────────
           appBar: AppBar(
             elevation: 0,
             backgroundColor: Colors.transparent,
@@ -464,10 +465,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             ],
           ),
 
-          backgroundColor:
-              Theme.of(context).colorScheme.background,
-          bottomNavigationBar:
-              const PrivoxBottomMenu(currentIndex: 0),
+          backgroundColor: Theme.of(context).colorScheme.background,
 
           // ── Body ────────────────────────────────────────────────────────
           body: RefreshIndicator(
@@ -476,14 +474,11 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 20.0, vertical: 16.0),
+                  padding: const EdgeInsets.symmetric( horizontal: 20.0, vertical: 16.0),
                   child: Column(
                     crossAxisAlignment:
                         CrossAxisAlignment.stretch,
                     children: [
-                      const SizedBox(height: 16),
-
                       // ── Profile card ─────────────────────────────────
                       Card(
                         shape: RoundedRectangleBorder(
@@ -527,7 +522,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                                     Text(
                                       widget.username,
                                       style: const TextStyle(
-                                        fontSize: 20,
+                                        fontSize: 16,
                                         fontWeight:
                                             FontWeight.w700,
                                       ),

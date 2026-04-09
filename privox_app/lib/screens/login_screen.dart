@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:privox/screens/welcome_screen.dart';
 import 'package:privox/variables.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:math';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:privox/services/socket_service.dart';
+import 'package:privox/widgets/privox_bottom_menu.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -236,7 +236,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (_) => WelcomeScreen(
+            builder: (_) => PrivoxTabsScreen(
               username: username,
               userId: (userId != null ? userId.toString() : username),
               deviceId: deviceId,
