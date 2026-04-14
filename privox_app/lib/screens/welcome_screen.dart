@@ -414,9 +414,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final initials =
-        (widget.username.isNotEmpty ? widget.username[0] : '?')
-            .toUpperCase();
+    final initials = (widget.username.isNotEmpty ? widget.username[0] : '?').toUpperCase();
 
     return Consumer<SocketService>(
       builder: (context, socketService, _) {

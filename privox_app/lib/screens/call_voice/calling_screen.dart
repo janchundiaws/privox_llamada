@@ -135,9 +135,10 @@ class _CallingScreen extends State<CallingScreen> {
                             : "Llamada de " +
                                   (widget.username ?? widget.fromUserId),
                         style: const TextStyle(color: Colors.white, fontSize: 22),
+                        textAlign: TextAlign.center,
                       ),
                       const Text(
-                        "Llamando...",
+                        "...",
                         style: TextStyle(color: Colors.grey),
                       ),
                     ],
