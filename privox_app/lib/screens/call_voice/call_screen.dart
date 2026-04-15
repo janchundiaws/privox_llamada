@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_voice_processor/flutter_voice_processor.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:privox/main.dart';
@@ -39,8 +38,6 @@ class _CallScreenState extends State<CallScreen> {
   bool _muted = false;
 
   Timer? _statsTimer;
-  String _remoteAudioStats = "Esperando audio remoto...";
-  String _localAudioStats = "Esperando audio local...";
   String _statusConection = "Conectando...";
 
   //Sensor de proximidad
@@ -48,11 +45,9 @@ class _CallScreenState extends State<CallScreen> {
   bool _isNear = false;
   bool _isProximityWakeLockEnabled = false;
 
-  // Voice Processor (solo Android)
-  static const int _vpFrameLength  = 512;
-  static const int _vpSampleRate   = 16000;
-  VoiceProcessorFrameListener? _vpFrameListener;
-  VoiceProcessorErrorListener? _vpErrorListener;
+  // Distorsión de voz (solo Android) — controla RobotVoiceProcessor nativo
+  static const _distortionChannel = MethodChannel('voice_distortion');
+  bool _distortionEnabled = false;
 
   @override
   void initState() {
@@ -60,7 +55,8 @@ class _CallScreenState extends State<CallScreen> {
     _initRenderers();
     _startRemoteAudioStats();
     _initProximitySensor();
-    _startVoiceProcessorAndroid();
+    _disableDistortion(); // desactiva distorsión al inicio de la llamada
+    _toggleSpeaker(); // activa altavoz al inicio de la llamada
     flutterLocalNotificationsPlugin.cancelAll();
     // Bloquear orientación en landscape
     SystemChrome.setPreferredOrientations([
@@ -85,57 +81,38 @@ class _CallScreenState extends State<CallScreen> {
     }
   }
 
-  // ── Voice Processor (Android only) ─────────────────────────────────────────
+  // ── Distorsión de voz (Android only) ───────────────────────────────────────
+  // Activa/desactiva RobotVoiceProcessor en el pipeline nativo de WebRTC.
+  // El procesador modifica el buffer PCM-16bit en-memoria, antes de que
+  // el frame sea codificado y enviado al peer remoto.
 
-  Future<void> _startVoiceProcessorAndroid() async {
+  Future<void> _enableDistortion() async {
     if (!Platform.isAndroid) return;
     try {
-      final vp = VoiceProcessor.instance;
-
-      if (vp == null) {
-        print('⚠️ VoiceProcessor no disponible en este dispositivo');
-        return;
-      }
-
-      _vpFrameListener = (List<int> frame) {
-        // Aquí se reciben frames PCM de 16-bit a 16kHz.
-        // Cada frame contiene _vpFrameLength muestras.
-        // Se puede usar para: VAD, niveles de volumen, noise cancellation, etc.
-        if (!mounted) return;
-        // Ejemplo: calcular nivel de energía del frame
-        // final energy = frame.fold<double>(0, (sum, s) => sum + s * s) / frame.length;
-      };
-
-      _vpErrorListener = (VoiceProcessorException error) {
-        print('❌ VoiceProcessor error: \${error.message}');
-      };
-
-      vp.addFrameListener(_vpFrameListener!);
-      vp.addErrorListener(_vpErrorListener!);
-
-      final hasPermission = await vp.hasRecordAudioPermission();
-      if (hasPermission == true) {
-        await vp.start(_vpFrameLength, _vpSampleRate);
-        print('🎙️ VoiceProcessor iniciado (Android)');
-      } else {
-        print('⚠️ VoiceProcessor: sin permiso de micrófono');
-      }
+      await _distortionChannel.invokeMethod('enable');
+      if (mounted) setState(() => _distortionEnabled = true);
+      print('🤖 Distorsión activada');
     } catch (e) {
-      print('❌ Error iniciando VoiceProcessor: \$e');
+      print('❌ Error activando distorsión: $e');
     }
   }
 
-  Future<void> _stopVoiceProcessorAndroid() async {
+  Future<void> _disableDistortion() async {
     if (!Platform.isAndroid) return;
     try {
-      final vp = VoiceProcessor.instance;
-      if (vp == null) return;
-      if (_vpFrameListener != null) vp.removeFrameListener(_vpFrameListener!);
-      if (_vpErrorListener != null) vp.removeErrorListener(_vpErrorListener!);
-      if (vp.isRecording == true) await vp.stop();
-      print('🛑 VoiceProcessor detenido (Android)');
+      await _distortionChannel.invokeMethod('disable');
+      if (mounted) setState(() => _distortionEnabled = false);
+      print('🔇 Distorsión desactivada');
     } catch (e) {
-      print('❌ Error deteniendo VoiceProcessor: \$e');
+      print('❌ Error desactivando distorsión: $e');
+    }
+  }
+
+  Future<void> _toggleDistortion() async {
+    if (_distortionEnabled) {
+      await _disableDistortion();
+    } else {
+      await _enableDistortion();
     }
   }
 
@@ -190,7 +167,7 @@ class _CallScreenState extends State<CallScreen> {
   void dispose() async {
     // Deshabilitar el wake lock de proximidad
     await _disableProximityWakeLock();
-    await _stopVoiceProcessorAndroid();
+    await _disableDistortion();
     
     // Cancelar suscripción al sensor
     await _proximitySubscription?.cancel();
@@ -227,25 +204,9 @@ class _CallScreenState extends State<CallScreen> {
         for (final report in stats) {
           if (report.type == 'inbound-rtp' &&
               report.values['kind'] == 'audio') {
-            final bytes = report.values['bytesReceived'] ?? 0;
-            final jitter = report.values['jitter'] ?? 0;
-            final packets = report.values['packetsReceived'] ?? 0;
-
             if (!mounted) return;
             setState(() {
-              _remoteAudioStats = "📈 Remote audio: bytes=$bytes, packets=$packets, jitter=$jitter";
               _statusConection = "En llamada - ${_formatDuration(_callDuration)}";
-            });
-          }
-
-          if (report.type == 'outbound-rtp' &&
-              report.values['kind'] == 'audio') {
-            final bytes = report.values['bytesSent'] ?? 0;
-            final packets = report.values['packetsSent'] ?? 0;
-
-            if (!mounted) return;
-            setState(() {
-              _localAudioStats = "🎙️ Local audio: bytes=$bytes, packets=$packets";
             });
           }
         }
@@ -352,6 +313,26 @@ class _CallScreenState extends State<CallScreen> {
                         Text("Mute", style: const TextStyle(color: Colors.white)),
                       ],
                     ),
+                    if (Platform.isAndroid)
+                      Column(
+                        children: [
+                          FloatingActionButton(
+                            heroTag: "btnDistortion",
+                            backgroundColor:
+                                _distortionEnabled ? Colors.deepPurple : Colors.grey[800],
+                            onPressed: _toggleDistortion,
+                            child: Icon(
+                              _distortionEnabled
+                                  ? Icons.spatial_audio
+                                  : Icons.spatial_audio_off,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text('Voz Robot',
+                              style: TextStyle(color: Colors.white, fontSize: 12)),
+                        ],
+                      ),
                     Column(
                       children: [
                         FloatingActionButton(

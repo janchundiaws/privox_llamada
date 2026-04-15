@@ -79,13 +79,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     getPreferencesInit();
     _searchController.addListener(_onSearchChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      print("janchundia la maravilla ==>");
-      print(STAY_ONLINE);
-
-
       if (STAY_ONLINE) {
         final socketService = Provider.of<SocketService>(context, listen: false);
-        print(socketService.isConnected);
         socketService.disconnect();
         socketService.connect();
       }
@@ -415,7 +410,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   @override
   Widget build(BuildContext context) {
     final initials = (widget.username.isNotEmpty ? widget.username[0] : '?').toUpperCase();
-
+    print("janchundia la maravilla ==> build welcome screen");
     return Consumer<SocketService>(
       builder: (context, socketService, _) {
         print("isaias 1");
@@ -479,9 +474,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                     children: [
                       // ── Profile card ─────────────────────────────────
                       Card(
-                        shape: RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(16)),
+                        shape: RoundedRectangleBorder(borderRadius:BorderRadius.circular(16)),
                         elevation: 4,
                         child: Padding(
                           padding: const EdgeInsets.all(16.0),
@@ -554,27 +547,23 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                                                   .circular(12),
                                         ),
                                         child: Row(
-                                          mainAxisSize:
-                                              MainAxisSize.min,
+                                          mainAxisSize:MainAxisSize.min,
                                           children: [
                                             Icon(
                                               Icons.circle,
                                               size: 10,
-                                              color: socketService
-                                                      .isConnected
+                                              color: socketService.isConnected
                                                   ? Colors.green
                                                   : Colors.red,
                                             ),
                                             const SizedBox(
                                                 width: 6),
                                             Text(
-                                              socketService
-                                                      .isConnected
+                                              socketService.isConnected
                                                   ? 'Online'
                                                   : 'Offline',
                                               style: TextStyle(
-                                                color: socketService
-                                                        .isConnected
+                                                color: socketService.isConnected
                                                     ? Colors.green
                                                     : Colors.red,
                                                 fontSize: 12,

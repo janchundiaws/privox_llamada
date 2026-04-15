@@ -104,13 +104,16 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
         //validacion cuando este permitido el estar oline siempre y la conexion este perdida
         if (STAY_ONLINE && !socketService.isConnected && !socketService.isConnecting) {
-          print("janchundia===>");
-          print("[WelcomeScreen] STAY_ONLINE is enabled but socket is disconnected. Reconnecting...");
+          // print("janchundia===>");
+          // print("[WelcomeScreen] STAY_ONLINE is enabled but socket is disconnected. Reconnecting...");
           //socketService.connect();
         }
 
       if (STAY_ONLINE && !socketService.isConnected) {
         final socketService = Provider.of<SocketService>(context, listen: false);
+        print("inicio de conexion socket desde el main");
+        print(socketService.isConnected);
+        print("fin de conexion socket desde el main");
         socketService.disconnect();
         socketService.connect();
       }

@@ -5,13 +5,9 @@ PODS:
   - Flutter (1.0.0)
   - flutter_local_notifications (0.0.1):
     - Flutter
-  - flutter_voice_processor (1.1.2):
-    - Flutter
-    - ios-voice-processor (~> 1.2.0)
   - flutter_webrtc (1.2.0):
     - Flutter
     - WebRTC-SDK (= 137.7151.04)
-  - ios-voice-processor (1.2.0)
   - package_info_plus (0.4.5):
     - Flutter
   - path_provider_foundation (0.0.1):
@@ -30,7 +26,6 @@ DEPENDENCIES:
   - audioplayers_darwin (from `.symlinks/plugins/audioplayers_darwin/darwin`)
   - Flutter (from `Flutter`)
   - flutter_local_notifications (from `.symlinks/plugins/flutter_local_notifications/ios`)
-  - flutter_voice_processor (from `.symlinks/plugins/flutter_voice_processor/ios`)
   - flutter_webrtc (from `.symlinks/plugins/flutter_webrtc/ios`)
   - package_info_plus (from `.symlinks/plugins/package_info_plus/ios`)
   - path_provider_foundation (from `.symlinks/plugins/path_provider_foundation/darwin`)
@@ -40,7 +35,6 @@ DEPENDENCIES:
 
 SPEC REPOS:
   trunk:
-    - ios-voice-processor
     - WebRTC-SDK
 
 EXTERNAL SOURCES:
@@ -50,8 +44,6 @@ EXTERNAL SOURCES:
     :path: Flutter
   flutter_local_notifications:
     :path: ".symlinks/plugins/flutter_local_notifications/ios"
-  flutter_voice_processor:
-    :path: ".symlinks/plugins/flutter_voice_processor/ios"
   flutter_webrtc:
     :path: ".symlinks/plugins/flutter_webrtc/ios"
   package_info_plus:
@@ -69,9 +61,7 @@ SPEC CHECKSUMS:
   audioplayers_darwin: 4f9ca89d92d3d21cec7ec580e78ca888e5fb68bd
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
   flutter_local_notifications: ad39620c743ea4c15127860f4b5641649a988100
-  flutter_voice_processor: f60363f959515eaebc35bcaaf26017596c953fc6
   flutter_webrtc: c3e21fc0dcd9d8eb246ae4d5256fcbeb2f5ecd22
-  ios-voice-processor: 6b5ca08962f39e434fe39dca0f483d923a3b1b97
   package_info_plus: af8e2ca6888548050f16fa2f1938db7b5a5df499
   path_provider_foundation: bb55f6dbba17d0dccd6737fe6f7f34fbd0376880
   permission_handler_apple: 4ed2196e43d0651e8ff7ca3483a069d469701f2d

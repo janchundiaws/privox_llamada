@@ -48,4 +48,7 @@ flutter {
 dependencies {
     // Core library desugaring para flutter_local_notifications
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+    // Necesario para implementar AudioProcessingAdapter.ExternalAudioFrameProcessing
+    // (misma versión que usa flutter_webrtc 1.2.1 internamente)
+    implementation("io.github.webrtc-sdk:android:137.7151.04")
 }
