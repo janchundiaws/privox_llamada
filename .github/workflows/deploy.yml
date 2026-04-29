@@ -1,0 +1,36 @@
+name: Deploy Docker App to DigitalOcean janchundia
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy via SSH
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Connect to server and deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_SSH_PORT }}
+          script: |
+            cd /root/privox_llamada
+
+            echo "Descargando todos los cambios del repositorio..."
+            git fetch origin
+
+            echo "Actualizando repositorio..."
+            git reset --hard origin/${{ secrets.SERVER_BRANCH }}
+
+            echo "Deteniendo contenedores..."
+            docker-compose down
+
+            echo "Reconstruyendo y levantando servicios..."
+            docker-compose up -d --build app
+
+            echo "Deploy finalizado correctamente"
