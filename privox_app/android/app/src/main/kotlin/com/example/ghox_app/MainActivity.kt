@@ -10,73 +10,88 @@ import io.flutter.plugin.common.MethodChannel
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-// ── Robot Voice Processor ───────────────────────────────────────────────────
+// ── Sonic Voice Processor ───────────────────────────────────────────────────
 // Implements ExternalAudioFrameProcessing to hook directly into WebRTC's
-// capture pipeline. The buffer is PCM-16-bit (little-endian) and is
-// modified in-place before the frame is encoded and sent.
-class RadioMilitaryVoiceProcessor : AudioProcessingAdapter.ExternalAudioFrameProcessing {
+// capture pipeline. Uses the Sonic library for high-quality pitch shifting.
+class SonicVoiceProcessor : AudioProcessingAdapter.ExternalAudioFrameProcessing {
 
     @Volatile var enabled = true
-
-    private var lastSample = 0f
-
-    // Parámetros estilo radio militar
-    private val wetMix = 0.55f          // 55% efecto, 45% voz original
-    private val hpfCoeff = 0.85f        // High-pass suave (quita graves)
-    private val lpfCoeff = 0.25f        // Low-pass suave (quita agudos)
-    private val drive = 1.35f           // Distorsión analógica suave
-    private val compressRatio = 0.65f   // Compresión estilo radio
-
-    private var hpfState = 0f
-    private var lpfState = 0f
+    private var sonic: Sonic? = null
+    private var sampleRate = 48000
+    private var numChannels = 1
+    
+    // Configuración para "Ardilla": Pitch 2.0 (más agudo), Speed 1.0, Rate 1.0
+    private val pitchShift = 2.0f 
+    
+    // Umbral de silencio (Gate). Si el RMS es menor a esto, enviamos silencio.
+    // 30-100 es un rango típico para sensibilidad moderada.
+    private val silenceThreshold = 50.0 
 
     override fun initialize(sampleRateHz: Int, numChannels: Int) {
-        hpfState = 0f
-        lpfState = 0f
-        lastSample = 0f
+        this.sampleRate = sampleRateHz
+        this.numChannels = numChannels
+        setupSonic()
     }
 
     override fun reset(newRate: Int) {
-        hpfState = 0f
-        lpfState = 0f
-        lastSample = 0f
+        this.sampleRate = newRate
+        setupSonic()
+    }
+
+    private fun setupSonic() {
+        sonic = Sonic(sampleRate, numChannels).apply {
+            pitch = pitchShift
+            speed = 1.0f
+            rate = 1.0f
+        }
+    }
+
+    private fun calculateRMS(shorts: ShortArray): Double {
+        var sum = 0.0
+        for (s in shorts) {
+            sum += (s.toInt() * s.toInt()).toDouble()
+        }
+        return Math.sqrt(sum / shorts.size)
     }
 
     override fun process(numBands: Int, numFrames: Int, buffer: ByteBuffer) {
-        if (!enabled) return
+        if (!enabled || sonic == null) return
 
-        buffer.order(ByteOrder.LITTLE_ENDIAN)
-        val numSamples = numFrames * numBands
+        val totalSamples = numFrames * numChannels
         val startPos = buffer.position()
+        
+        buffer.order(ByteOrder.LITTLE_ENDIAN)
+        
+        // Leer del buffer
+        val inputShorts = ShortArray(totalSamples)
+        for (i in 0 until totalSamples) {
+            inputShorts[i] = buffer.getShort(startPos + i * 2)
+        }
 
-        for (i in 0 until numSamples) {
-            val bytePos = startPos + i * 2
-            if (bytePos + 2 > buffer.limit()) break
+        // 1. Umbral de Silencio (Gate)
+        val rms = calculateRMS(inputShorts)
+        if (rms < silenceThreshold) {
+            // Si es silencio, llenamos el buffer con ceros y no procesamos con Sonic
+            // Esto evita que Sonic intente procesar el ruido de fondo.
+            for (i in 0 until totalSamples) {
+                buffer.putShort(startPos + i * 2, 0)
+            }
+            return
+        }
 
-            val dry = buffer.getShort(bytePos).toFloat()
-
-            // 1) High-pass filter (quita graves)
-            hpfState = dry - (hpfCoeff * hpfState)
-            var processed = hpfState
-
-            // 2) Low-pass filter (quita agudos)
-            lpfState = lpfState + lpfCoeff * (processed - lpfState)
-            processed = lpfState
-
-            // 3) Compresión estilo radio militar
-            processed = (processed * compressRatio) + (lastSample * (1 - compressRatio))
-            lastSample = processed
-
-            // 4) Distorsión analógica suave (tanh)
-            processed = (Math.tanh(processed * drive.toDouble()) * 12000).toFloat()
-
-            // 5) Mezcla dry/wet
-            val mixed = (dry * (1 - wetMix) + processed * wetMix)
-                .coerceIn(Short.MIN_VALUE.toFloat(), Short.MAX_VALUE.toFloat())
-                .toInt()
-                .toShort()
-
-            buffer.putShort(bytePos, mixed)
+        // 2. Procesar con Sonic
+        sonic?.writeShortToStream(inputShorts, numFrames)
+        
+        // Leer resultado de Sonic
+        val available = sonic?.samplesAvailable() ?: 0
+        if (available >= numFrames) {
+            val outputShorts = ShortArray(totalSamples)
+            sonic?.readShortFromStream(outputShorts, numFrames)
+            
+            // Escribir de vuelta al buffer
+            for (i in 0 until totalSamples) {
+                buffer.putShort(startPos + i * 2, outputShorts[i])
+            }
         }
     }
 }
@@ -91,7 +106,7 @@ class MainActivity : FlutterActivity() {
     private var proximityWakeLock: PowerManager.WakeLock? = null
 
     // Single shared processor instance
-    private val robotProcessor = RadioMilitaryVoiceProcessor()
+    private val voiceProcessor = SonicVoiceProcessor()
     private var distortionEnabled = false
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -142,8 +157,8 @@ class MainActivity : FlutterActivity() {
             println("⚠️ FlutterWebRTCPlugin no disponible todavía")
             return
         }
-        robotProcessor.enabled = true
-        plugin.audioProcessingController.capturePostProcessing.addProcessor(robotProcessor)
+        voiceProcessor.enabled = true
+        plugin.audioProcessingController.capturePostProcessing.addProcessor(voiceProcessor)
         distortionEnabled = true
         println("🤖 Distorsión de voz activada")
     }
@@ -151,7 +166,7 @@ class MainActivity : FlutterActivity() {
     private fun disableDistortion() {
         if (!distortionEnabled) return
         val plugin = FlutterWebRTCPlugin.sharedSingleton ?: return
-        plugin.audioProcessingController.capturePostProcessing.removeProcessor(robotProcessor)
+        plugin.audioProcessingController.capturePostProcessing.removeProcessor(voiceProcessor)
         distortionEnabled = false
         println("🔇 Distorsión de voz desactivada")
     }
