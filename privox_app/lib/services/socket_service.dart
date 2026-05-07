@@ -338,15 +338,7 @@ class SocketService extends ChangeNotifier {
 
       peerConnection = await createPeerConnection(config);
 
-      localStream = await navigator.mediaDevices.getUserMedia({
-        'audio': {
-          'echoCancellation': true,
-          'noiseSuppression': true,
-          'autoGainControl': false,
-          'googAutoGainControl': false,
-          'sampleRate': 48000,
-        }
-      });
+      localStream = await navigator.mediaDevices.getUserMedia({'audio': true});
 
       for (var track in localStream!.getTracks()) {
         await peerConnection?.addTrack(track, localStream!);
