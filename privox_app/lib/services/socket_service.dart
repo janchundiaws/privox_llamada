@@ -338,7 +338,17 @@ class SocketService extends ChangeNotifier {
 
       peerConnection = await createPeerConnection(config);
 
-      localStream = await navigator.mediaDevices.getUserMedia({'audio': true});
+      // Desactivamos los filtros agresivos de WebRTC que destruyen el efecto de voz
+      final Map<String, dynamic> mediaConstraints = {
+        'audio': {
+          'echoCancellation': false,
+          'noiseSuppression': false,
+          'autoGainControl': false,
+        },
+        'video': false,
+      };
+
+      localStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
 
       for (var track in localStream!.getTracks()) {
         await peerConnection?.addTrack(track, localStream!);

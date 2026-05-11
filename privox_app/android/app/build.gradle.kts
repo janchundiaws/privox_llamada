@@ -30,6 +30,12 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        externalNativeBuild {
+            cmake {
+                arguments += "-DANDROID_STL=c++_shared"
+            }
+        }
     }
 
     buildTypes {
@@ -37,6 +43,15 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+        }
+    }
+    buildFeatures {
+        prefab = true
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
         }
     }
 }
@@ -51,4 +66,5 @@ dependencies {
     // Necesario para implementar AudioProcessingAdapter.ExternalAudioFrameProcessing
     // (misma versión que usa flutter_webrtc 1.2.1 internamente)
     implementation("io.github.webrtc-sdk:android:137.7151.04")
+    implementation("com.google.oboe:oboe:1.8.1")
 }

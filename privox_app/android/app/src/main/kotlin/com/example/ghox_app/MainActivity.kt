@@ -10,74 +10,31 @@ import io.flutter.plugin.common.MethodChannel
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-// ── Robot Voice Processor ───────────────────────────────────────────────────
-// Implements ExternalAudioFrameProcessing to hook directly into WebRTC's
-// capture pipeline. The buffer is PCM-16-bit (little-endian) and is
-// modified in-place before the frame is encoded and sent.
-class RadioMilitaryVoiceProcessor : AudioProcessingAdapter.ExternalAudioFrameProcessing {
+class RobotVoiceProcessor : AudioProcessingAdapter.ExternalAudioFrameProcessing {
 
     @Volatile var enabled = true
 
-    private var lastSample = 0f
-
-    // Parámetros estilo radio militar
-    private val wetMix = 0.55f          // 55% efecto, 45% voz original
-    private val hpfCoeff = 0.85f        // High-pass suave (quita graves)
-    private val lpfCoeff = 0.25f        // Low-pass suave (quita agudos)
-    private val drive = 1.35f           // Distorsión analógica suave
-    private val compressRatio = 0.65f   // Compresión estilo radio
-
-    private var hpfState = 0f
-    private var lpfState = 0f
-
-    override fun initialize(sampleRateHz: Int, numChannels: Int) {
-        hpfState = 0f
-        lpfState = 0f
-        lastSample = 0f
+    // Cargar la librería C++ compilada
+    init {
+        System.loadLibrary("oboe_audio_engine")
     }
 
-    override fun reset(newRate: Int) {
-        hpfState = 0f
-        lpfState = 0f
-        lastSample = 0f
-    }
+    // Declaración del método nativo que escribimos en voice_processor.cpp
+    private external fun processPitchShiftNative(buffer: ByteBuffer, numBands: Int, numFrames: Int, pitchFactor: Float)
+
+    override fun initialize(sampleRateHz: Int, numChannels: Int) {}
+    override fun reset(newRate: Int) {}
 
     override fun process(numBands: Int, numFrames: Int, buffer: ByteBuffer) {
         if (!enabled) return
 
-        buffer.order(ByteOrder.LITTLE_ENDIAN)
-        val numSamples = numFrames * numBands
-        val startPos = buffer.position()
-
-        for (i in 0 until numSamples) {
-            val bytePos = startPos + i * 2
-            if (bytePos + 2 > buffer.limit()) break
-
-            val dry = buffer.getShort(bytePos).toFloat()
-
-            // 1) High-pass filter (quita graves)
-            hpfState = dry - (hpfCoeff * hpfState)
-            var processed = hpfState
-
-            // 2) Low-pass filter (quita agudos)
-            lpfState = lpfState + lpfCoeff * (processed - lpfState)
-            processed = lpfState
-
-            // 3) Compresión estilo radio militar
-            processed = (processed * compressRatio) + (lastSample * (1 - compressRatio))
-            lastSample = processed
-
-            // 4) Distorsión analógica suave (tanh)
-            processed = (Math.tanh(processed * drive.toDouble()) * 12000).toFloat()
-
-            // 5) Mezcla dry/wet
-            val mixed = (dry * (1 - wetMix) + processed * wetMix)
-                .coerceIn(Short.MIN_VALUE.toFloat(), Short.MAX_VALUE.toFloat())
-                .toInt()
-                .toShort()
-
-            buffer.putShort(bytePos, mixed)
-        }
+        // Aquí usamos el pitchFactor del proyecto anterior. 
+        // 0.85 es para un tono más grave (efecto oscuro/robot).
+        // 1.5 sería para efecto ardilla.
+        val pitchFactor = 0.85f 
+        
+        // Llamada ultra-rápida a C++ enviando el buffer directo de WebRTC
+        processPitchShiftNative(buffer, numBands, numFrames, pitchFactor)
     }
 }
 
@@ -91,7 +48,7 @@ class MainActivity : FlutterActivity() {
     private var proximityWakeLock: PowerManager.WakeLock? = null
 
     // Single shared processor instance
-    private val robotProcessor = RadioMilitaryVoiceProcessor()
+    private val robotProcessor = RobotVoiceProcessor()
     private var distortionEnabled = false
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
