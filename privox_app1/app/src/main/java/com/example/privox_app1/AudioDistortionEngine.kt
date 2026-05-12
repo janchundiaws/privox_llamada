@@ -21,7 +21,9 @@ class AudioDistortionEngine {
         ROBOT("Robot", 0.85f),
         PITCH("Pitch", 1.15f),
         VOCODER("Vocoder", 0.9f),
-        ALIEN("Alien", 1.25f)
+        ALIEN("Alien", 1.25f),
+        FEMALE("Mujer", 1.15f),
+        MAN("Hombre", 0.85f)
     }
 
     companion object {
@@ -259,6 +261,28 @@ class AudioDistortionEngine {
         workerThread?.join()
     }
 
+    fun processByteBuffer(buffer: java.nio.ByteBuffer, length: Int, mode: DistortionMode) {
+        // 16-bit PCM: 2 bytes per sample
+        val shortsCount = length / 2
+        val inputShorts = ShortArray(shortsCount)
+        val outputShorts = ShortArray(shortsCount)
+        
+        // Save current position and limit
+        val originalPosition = buffer.position()
+        
+        // Read from ByteBuffer
+        buffer.order(java.nio.ByteOrder.nativeOrder())
+        buffer.asShortBuffer().get(inputShorts)
+        
+        // Process
+        processFrame(inputShorts, outputShorts, shortsCount, mode)
+        
+        // Write back to ByteBuffer
+        buffer.position(originalPosition)
+        buffer.asShortBuffer().put(outputShorts)
+        buffer.position(originalPosition)
+    }
+
     private fun stopInternal() {
         if (audioRecord.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
             audioRecord.stop()
@@ -274,7 +298,7 @@ class AudioDistortionEngine {
         }
     }
 
-    private fun processFrame(
+    internal fun processFrame(
         input: ShortArray,
         output: ShortArray,
         length: Int,

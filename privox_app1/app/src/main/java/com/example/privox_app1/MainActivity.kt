@@ -1,7 +1,9 @@
 package com.example.privox_app1
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
+import android.util.Log
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -19,17 +21,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -37,6 +39,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.privox_app1.ui.theme.Privox_app1Theme
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val engine = AudioDistortionEngine()
@@ -50,7 +54,208 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    VoiceChangerTestScreen(engine)
+                    val prefs = getSharedPreferences("privox_prefs", android.content.Context.MODE_PRIVATE)
+                    val savedUsername = prefs.getString("username", "") ?: ""
+                    var currentScreen by remember { mutableStateOf(if (savedUsername.isNotEmpty()) "Home" else "Login") }
+                    var loggedInUser by remember { mutableStateOf(savedUsername) }
+                    var currentContact by remember { mutableStateOf("") }
+                    val scope = rememberCoroutineScope()
+                    
+                    var currentCallFromId by remember { mutableStateOf("") }
+                    var callDuration by remember { mutableStateOf(0) }
+                    var isMuted by remember { mutableStateOf(false) }
+                    var isSpeakerOn by remember { mutableStateOf(false) }
+                    var isDistortionEnabled by remember { mutableStateOf(false) }
+
+                    val socketService = remember { com.example.privox_app1.data.remote.SocketService.getInstance(this@MainActivity) }
+                    val isConnected by socketService.isConnected.collectAsState()
+
+                    LaunchedEffect(loggedInUser) {
+                        if (loggedInUser.isNotEmpty()) {
+                            socketService.connect()
+                        } else {
+                            socketService.disconnect()
+                        }
+                    }
+
+                    // Timer for active call and state resets
+                    LaunchedEffect(currentScreen) {
+                        if (loggedInUser.isNotEmpty()) {
+                            socketService.connect()
+                        }
+                        if (currentScreen == "Call" || currentScreen == "CallingIncoming" || currentScreen == "CallingOutgoing") {
+                            // Reset audio states at the start of any call flow
+                            isMuted = false
+                            isSpeakerOn = false
+                            isDistortionEnabled = false
+                            
+                            // Ensure system speaker is off
+                            val audioManager = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+                            audioManager.isSpeakerphoneOn = false
+                            
+                            if (currentScreen == "Call") {
+                                callDuration = 0
+                                while (currentScreen == "Call") {
+                                    delay(1000)
+                                    callDuration++
+                                }
+                            }
+                        }
+                    }
+
+                    // Observe socket events
+                    LaunchedEffect(Unit) {
+                        socketService.events.collect { event ->
+                            scope.launch {
+                                val type = event["type"] as? String
+                                when (type) {
+                                    "incoming-call" -> {
+                                        // Safety: only accept incoming calls if we are not busy
+                                        if (currentScreen == "Home") {
+                                            val fromId = event["from"] as? String ?: ""
+                                            val callId = event["callId"] as? String ?: ""
+                                            val fromUsername = event["fromUsername"] as? String ?: socketService.getUsernameById(fromId)
+                                            
+                                            socketService.currentCallId = callId
+                                            currentCallFromId = fromId
+                                            currentContact = fromUsername
+                                            currentScreen = "CallingIncoming"
+                                        } else {
+                                            // Optional: send busy signal if protocol supports it
+                                            Log.d("MainActivity", "Ignorando llamada entrante porque el usuario está ocupado en $currentScreen")
+                                        }
+                                    }
+                                    "call-accepted" -> {
+                                        // Emisor receives this
+                                        currentScreen = "Call"
+                                    }
+                                    "call-reject", "hangup" -> {
+                                        if (currentScreen != "Home") {
+                                            currentScreen = "Home"
+                                            socketService.disposeWebRTC(currentCallFromId)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    when (currentScreen) {
+                        "Login" -> {
+                            com.example.privox_app1.ui.screens.LoginScreen(
+                                onLoginSuccess = { user ->
+                                    loggedInUser = user
+                                    currentScreen = "Home"
+                                    prefs.edit().putString("username", user).apply()
+                                }
+                            )
+                        }
+                        "CallingIncoming" -> {
+                            com.example.privox_app1.ui.screens.CallingScreen(
+                                username = currentContact,
+                                isEmisor = false,
+                                onAccept = {
+                                    val callId = socketService.currentCallId
+                                    socketService.acceptCall(callId, currentCallFromId, currentContact)
+                                    scope.launch {
+                                        socketService.initWebRTC(currentCallFromId, false)
+                                        currentScreen = "Call" 
+                                    }
+                                },
+                                onReject = {
+                                    socketService.rejectCall(socketService.currentCallId, currentCallFromId)
+                                    currentScreen = "Home"
+                                }
+                            )
+                        }
+                        "CallingOutgoing" -> {
+                            com.example.privox_app1.ui.screens.CallingScreen(
+                                username = currentContact,
+                                isEmisor = true,
+                                onAccept = {},
+                                onReject = {
+                                    socketService.hangupCall(socketService.currentCallId, currentCallFromId)
+                                    socketService.disposeWebRTC(currentCallFromId)
+                                    currentScreen = "Home"
+                                }
+                            )
+                        }
+                        "Call" -> {
+                            com.example.privox_app1.ui.screens.CallScreen(
+                                username = currentContact,
+                                callDurationSeconds = callDuration,
+                                isMuted = isMuted,
+                                isSpeakerOn = isSpeakerOn,
+                                isDistortionEnabled = isDistortionEnabled,
+                                onMuteToggle = {
+                                    isMuted = !isMuted
+                                    socketService.localStream?.audioTracks?.forEach { it.setEnabled(!isMuted) }
+                                },
+                                onSpeakerToggle = {
+                                    isSpeakerOn = !isSpeakerOn
+                                    val audioManager = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+                                    audioManager.isSpeakerphoneOn = isSpeakerOn
+                                },
+                                onDistortionToggle = {
+                                    isDistortionEnabled = !isDistortionEnabled
+                                    socketService.isDistortionEnabled = isDistortionEnabled
+                                    // Use default ROBOT mode as requested (or current active mode)
+                                    socketService.currentDistortionMode = com.example.privox_app1.AudioDistortionEngine.DistortionMode.ROBOT
+                                },
+                                onHangup = {
+                                    socketService.hangupCall(socketService.currentCallId, currentCallFromId)
+                                    socketService.disposeWebRTC(currentCallFromId)
+                                    currentScreen = "Home"
+                                }
+                            )
+                        }
+                        "Home" -> {
+                            com.example.privox_app1.ui.screens.MainTabsScreen(
+                                username = loggedInUser,
+                                engine = engine,
+                                onSettingsClick = { currentScreen = "Settings" },
+                                onCallVoice = { targetId, targetName ->
+                                    currentContact = targetName
+                                    currentScreen = "CallingOutgoing"
+                                    scope.launch {
+                                        val result = socketService.initiateCall(targetId, targetName)
+                                        if (result != null) {
+                                            socketService.currentCallId = result
+                                            currentCallFromId = targetId
+                                            socketService.initWebRTC(targetId, true)
+                                        } else {
+                                            currentScreen = "Home"
+                                        }
+                                    }
+                                },
+                                onChatClick = { targetId, targetName ->
+                                    currentContact = targetName
+                                    currentScreen = "Chat"
+                                },
+                                onLogoutClick = {
+                                    val authService = com.example.privox_app1.data.remote.AuthService(this@MainActivity)
+                                    authService.logout()
+                                    loggedInUser = ""
+                                    currentScreen = "Login"
+                                },
+                                isConnected = isConnected
+                            )
+                        }
+                        "Settings" -> {
+                            com.example.privox_app1.ui.screens.SettingsScreen(
+                                onBack = { currentScreen = "Home" },
+                                onLogout = {
+                                    val authService = com.example.privox_app1.data.remote.AuthService(this@MainActivity)
+                                    authService.logout()
+                                    loggedInUser = ""
+                                    currentScreen = "Login"
+                                }
+                            )
+                        }
+                        "VoiceChanger" -> {
+                            // Handled as a tab in MainTabsScreen
+                        }
+                    }
                 }
             }
         }
@@ -62,6 +267,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VoiceChangerTestScreen(engine: AudioDistortionEngine) {
     val effects = AudioDistortionEngine.DistortionMode.values().toList()
@@ -108,21 +314,35 @@ fun VoiceChangerTestScreen(engine: AudioDistortionEngine) {
             color = MaterialTheme.colorScheme.primary
         )
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        var expanded by remember { mutableStateOf(false) }
+
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = !expanded },
+            modifier = Modifier.fillMaxWidth()
         ) {
-            effects.forEach { effect ->
-                val isSelected = effect == selectedEffect.value
-                Button(
-                    onClick = { selectedEffect.value = effect },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
-                        contentColor = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
-                    ),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(text = effect.label, fontSize = 12.sp)
+            OutlinedTextField(
+                value = selectedEffect.value.label,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Seleccionar efecto") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                modifier = Modifier.menuAnchor().fillMaxWidth()
+            )
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                effects.forEach { effect ->
+                    DropdownMenuItem(
+                        text = { Text(effect.label) },
+                        onClick = {
+                            selectedEffect.value = effect
+                            expanded = false
+                        },
+                        contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                    )
                 }
             }
         }

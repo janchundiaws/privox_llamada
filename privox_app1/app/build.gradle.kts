@@ -70,4 +70,14 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+    
+    // Networking
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.google.code.gson:gson:2.10.1")
+    
+    // WebRTC
+    implementation("io.getstream:stream-webrtc-android:1.1.1")
+    
+    // Icons
+    implementation("androidx.compose.material:material-icons-extended")
 }

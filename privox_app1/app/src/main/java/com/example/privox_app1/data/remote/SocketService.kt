@@ -1,0 +1,497 @@
+package com.example.privox_app1.data.remote
+
+import android.content.Context
+import android.content.SharedPreferences
+import android.util.Log
+import com.google.gson.Gson
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import okhttp3.*
+import org.webrtc.*
+import java.util.concurrent.TimeUnit
+
+class SocketService private constructor(private val context: Context) {
+
+    companion object {
+        @Volatile
+        private var instance: SocketService? = null
+
+        fun getInstance(context: Context): SocketService {
+            return instance ?: synchronized(this) {
+                instance ?: SocketService(context.applicationContext).also { instance = it }
+            }
+        }
+    }
+
+    private val TAG = "SocketService"
+    private val client = OkHttpClient.Builder()
+        .pingInterval(10, TimeUnit.SECONDS)
+        .build()
+    private val gson = Gson()
+
+    var webSocket: WebSocket? = null
+    var peerConnection: PeerConnection? = null
+    var localStream: MediaStream? = null
+    
+    private val _isConnected = MutableStateFlow(false)
+    val isConnected = _isConnected.asStateFlow()
+    var isConnecting = false
+    var message: String? = null
+    var currentTargetUserId: String? = null
+    var currentTargetUsername: String? = null
+    var currentCallId: String = ""
+    var missedCallId: String? = null
+
+    private val _events = MutableSharedFlow<Map<String, Any?>>()
+    val events = _events.asSharedFlow()
+
+    private val pendingCandidates = mutableListOf<IceCandidate>()
+    private val usersCache = mutableMapOf<String, String>()
+    
+    private var peerConnectionFactory: PeerConnectionFactory? = null
+    private val rootEglBase: EglBase = EglBase.create()
+
+    private val prefs: SharedPreferences = context.getSharedPreferences("privox_prefs", Context.MODE_PRIVATE)
+    private val coroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    init {
+        initWebRtcFactory()
+    }
+
+    var currentDistortionMode = com.example.privox_app1.AudioDistortionEngine.DistortionMode.ROBOT
+    var isDistortionEnabled = false
+    private val distortionEngine = com.example.privox_app1.AudioDistortionEngine()
+
+    private fun initWebRtcFactory() {
+        PeerConnectionFactory.initialize(
+            PeerConnectionFactory.InitializationOptions.builder(context)
+                .setEnableInternalTracer(true)
+                .createInitializationOptions()
+        )
+        
+        val options = PeerConnectionFactory.Options()
+        
+        val adm = org.webrtc.audio.JavaAudioDeviceModule.builder(context)
+            .setAudioSource(android.media.MediaRecorder.AudioSource.MIC)
+            .setSamplesReadyCallback { samples ->
+                if (isDistortionEnabled) {
+                    val buffer = java.nio.ByteBuffer.wrap(samples.data)
+                    distortionEngine.processByteBuffer(buffer, samples.data.size, currentDistortionMode)
+                }
+            }
+            .createAudioDeviceModule()
+
+        peerConnectionFactory = PeerConnectionFactory.builder()
+            .setOptions(options)
+            .setAudioDeviceModule(adm)
+            .createPeerConnectionFactory()
+    }
+
+    fun connect() {
+        if (isConnecting || isConnected.value) return
+        isConnecting = true
+        
+        val token = prefs.getString("token", "") ?: ""
+        var wsBase = Constants.URL_API
+        wsBase = wsBase.replace("https://", "wss://").replace("http://", "ws://")
+        if (wsBase.endsWith("/")) wsBase = wsBase.dropLast(1)
+        
+        val uri = "$wsBase?token=$token"
+        
+        val request = Request.Builder().url(uri).build()
+        webSocket = client.newWebSocket(request, object : WebSocketListener() {
+            override fun onOpen(webSocket: WebSocket, response: Response) {
+                _isConnected.value = true
+                isConnecting = false
+                message = "✅ Conectado"
+                Log.d(TAG, message!!)
+            }
+
+            override fun onMessage(webSocket: WebSocket, text: String) {
+                try {
+                    val data = gson.fromJson(text, Map::class.java) as Map<String, Any?>
+                    coroutineScope.launch {
+                        // For incoming calls, pre-fetch username to avoid UI lag
+                        if (data["type"] == "incoming-call") {
+                            val fromId = data["from"] as? String
+                            if (fromId != null) {
+                                val username = getUsernameById(fromId)
+                                val mutableData = data.toMutableMap()
+                                mutableData["fromUsername"] = username
+                                _events.emit(mutableData)
+                                handleIncomingMessage(mutableData)
+                                return@launch
+                            }
+                        }
+                        _events.emit(data)
+                        handleIncomingMessage(data)
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error parsing message: $e")
+                }
+            }
+
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                _isConnected.value = false
+                isConnecting = false
+                message = "❌ Desconectado del servidor"
+                Log.d(TAG, message!!)
+            }
+
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                _isConnected.value = false
+                isConnecting = false
+                message = "❌ Error en la conexión: ${t.message}"
+                Log.e(TAG, message!!)
+            }
+        })
+    }
+
+    fun disconnect() {
+        webSocket?.close(1000, "User disconnected")
+        webSocket = null
+        _isConnected.value = false
+        message = "❌ Desconectado"
+    }
+
+    suspend fun initiateCall(toUserId: String, toUsername: String): String? {
+        val payload = mapOf(
+            "type" to "call-init",
+            "to" to toUserId,
+            "toUsername" to toUsername,
+            "meta" to mapOf("mode" to "voice")
+        )
+        webSocket?.send(gson.toJson(payload))
+
+        // Wait for ack with a timeout
+        return withTimeoutOrNull(10000) {
+            val event = events.first { data ->
+                data["type"] == "call-init-ack" || data["type"] == "call-init-denied" 
+            }
+            if (event["type"] == "call-init-ack") {
+                event["callId"]?.toString()
+            } else {
+                null
+            }
+        }
+    }
+
+    fun acceptCall(callId: String, fromUserId: String, toUsername: String) {
+        currentTargetUserId = fromUserId
+        val payload = mapOf(
+            "type" to "call-accept",
+            "callId" to callId,
+            "from" to fromUserId,
+            "toUsername" to toUsername
+        )
+        webSocket?.send(gson.toJson(payload))
+    }
+
+    fun rejectCall(callId: String, fromUserId: String) {
+        val payload = mapOf(
+            "type" to "call-reject",
+            "callId" to callId,
+            "from" to fromUserId
+        )
+        webSocket?.send(gson.toJson(payload))
+    }
+
+    fun hangupCall(callId: String, toUserId: String) {
+        val payload = mapOf(
+            "type" to "hangup",
+            "callId" to callId,
+            "to" to toUserId
+        )
+        webSocket?.send(gson.toJson(payload))
+    }
+
+    private suspend fun handleIncomingMessage(data: Map<String, Any?>) {
+        val type = data["type"] as? String ?: return
+        when (type) {
+            "incoming-call" -> {
+                val fromUserId = data["from"] as? String ?: return
+                currentCallId = data["callId"] as? String ?: ""
+                val username = data["fromUsername"] as? String ?: getUsernameById(fromUserId)
+                Log.d(TAG, "Llamada entrante de $username ($fromUserId)")
+                // Navigation and UI should observe the events flow
+            }
+            "call-accepted" -> {
+                if (currentTargetUserId != null) {
+                    startOffer(currentTargetUserId!!)
+                }
+            }
+            "call-reject" -> {
+                message = "❌ Llamada rechazada servicio: ${data["callId"]}"
+            }
+            "hangup" -> {
+                // Let MainActivity handle disposal and navigation
+            }
+            "offer", "answer", "ice" -> {
+                handleSignal(data)
+            }
+            "call-missed" -> {
+                missedCallId = data["callId"] as? String
+            }
+            "peer-offline" -> {
+                Log.w(TAG, "⚠️ Usuario destino offline: ${data["to"]}")
+            }
+        }
+    }
+
+    suspend fun getUsernameById(userId: String): String = withContext(Dispatchers.IO) {
+        if (usersCache.containsKey(userId)) {
+            return@withContext usersCache[userId]!!
+        }
+        try {
+            val token = prefs.getString("token", "") ?: ""
+            val request = Request.Builder()
+                .url("${Constants.URL_API}api/users/usersaccount")
+                .header("Authorization", "Bearer $token")
+                .get()
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val bodyString = response.body?.string()
+                    val body = gson.fromJson(bodyString, Map::class.java) as Map<*, *>
+                    val users = body["users"] as? List<*> ?: emptyList<Any>()
+
+                    for (u in users) {
+                        if (u is Map<*, *>) {
+                            val id = u["userId"]?.toString()
+                            val displayName = u["displayName"]?.toString()
+                            val username = u["username"]?.toString()
+                            val name = if (!username.isNullOrEmpty()) username else displayName
+                            if (id != null && name != null) {
+                                usersCache[id] = name
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting username for $userId: $e")
+        }
+        usersCache[userId] ?: userId
+    }
+
+    private suspend fun getIceServers(): List<PeerConnection.IceServer> = withContext(Dispatchers.IO) {
+        val iceServers = mutableListOf<PeerConnection.IceServer>()
+        iceServers.add(PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer())
+        
+        try {
+            val token = prefs.getString("token", "") ?: ""
+            val request = Request.Builder()
+                .url("${Constants.URL_API}api/ice")
+                .header("Authorization", "Bearer $token")
+                .get()
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val bodyString = response.body?.string() ?: ""
+                    if (bodyString.isNotEmpty()) {
+                        val body = gson.fromJson(bodyString, Map::class.java) as Map<*, *>
+                        val servers = body["iceServers"] as? List<Map<String, Any>> ?: emptyList()
+                        for (server in servers) {
+                            val urls = server["urls"] as? String ?: continue
+                            val username = server["username"] as? String ?: ""
+                            val credential = server["credential"] as? String ?: ""
+                            iceServers.add(
+                                PeerConnection.IceServer.builder(urls)
+                                    .setUsername(username)
+                                    .setPassword(credential)
+                                    .createIceServer()
+                            )
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting ICE servers: $e")
+        }
+        iceServers
+    }
+
+    suspend fun initWebRTC(toUserId: String, isEmisor: Boolean) {
+        if (peerConnection != null) disposeWebRTC(toUserId)
+        try {
+            val iceServers = getIceServers()
+            
+            val rtcConfig = PeerConnection.RTCConfiguration(iceServers).apply {
+                sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
+            }
+
+            peerConnection = peerConnectionFactory?.createPeerConnection(rtcConfig, object : PeerConnection.Observer {
+                override fun onSignalingChange(state: PeerConnection.SignalingState?) {
+                    Log.d(TAG, "SignalingState: $state")
+                }
+                override fun onIceConnectionChange(state: PeerConnection.IceConnectionState?) {
+                    Log.d(TAG, "IceConnectionState: $state")
+                }
+                override fun onIceConnectionReceivingChange(receiving: Boolean) {}
+                override fun onIceGatheringChange(state: PeerConnection.IceGatheringState?) {}
+                override fun onIceCandidate(candidate: IceCandidate) {
+                    val payload = mapOf(
+                        "type" to "ice",
+                        "candidate" to candidate.sdp,
+                        "sdpMid" to candidate.sdpMid,
+                        "sdpMLineIndex" to candidate.sdpMLineIndex,
+                        "to" to toUserId
+                    )
+                    webSocket?.send(gson.toJson(payload))
+                }
+                override fun onIceCandidatesRemoved(candidates: Array<out IceCandidate>?) {}
+                override fun onAddStream(stream: MediaStream?) {}
+                override fun onRemoveStream(stream: MediaStream?) {}
+                override fun onDataChannel(dataChannel: DataChannel?) {}
+                override fun onRenegotiationNeeded() {}
+                override fun onAddTrack(receiver: RtpReceiver?, mediaStreams: Array<out MediaStream>?) {
+                    Log.d(TAG, "Remote track added")
+                }
+            })
+
+            // Setup local audio
+            val audioConstraints = MediaConstraints().apply {
+                mandatory.add(MediaConstraints.KeyValuePair("echoCancellation", "false"))
+                mandatory.add(MediaConstraints.KeyValuePair("noiseSuppression", "false"))
+                mandatory.add(MediaConstraints.KeyValuePair("autoGainControl", "false"))
+            }
+            
+            val audioSource = peerConnectionFactory?.createAudioSource(audioConstraints)
+            // Try to set a processor
+            try {
+                // audioSource?.setAudioProcessor(...) 
+            } catch(e: Exception) {}
+            
+            val audioTrack = peerConnectionFactory?.createAudioTrack("ARDAMSa0", audioSource)
+
+            localStream = peerConnectionFactory?.createLocalMediaStream("ARDAMS")
+            localStream?.addTrack(audioTrack)
+
+            if (audioTrack != null) {
+                peerConnection?.addTrack(audioTrack, listOf("ARDAMS"))
+            }
+
+            if (isEmisor) {
+                startOffer(toUserId)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error init WebRTC: $e")
+        }
+    }
+
+    private fun startOffer(toUserId: String) {
+        val constraints = MediaConstraints()
+        peerConnection?.createOffer(object : SdpObserver {
+            override fun onCreateSuccess(desc: SessionDescription?) {
+                if (desc != null) {
+                    peerConnection?.setLocalDescription(this, desc)
+                    val payload = mapOf(
+                        "type" to desc.type.canonicalForm(),
+                        "sdp" to desc.description,
+                        "to" to toUserId
+                    )
+                    webSocket?.send(gson.toJson(payload))
+                }
+            }
+            override fun onSetSuccess() {}
+            override fun onCreateFailure(error: String?) {}
+            override fun onSetFailure(error: String?) {}
+        }, constraints)
+    }
+
+    suspend fun handleSignal(data: Map<String, Any?>) {
+        val type = data["type"] as? String ?: return
+        when (type) {
+            "offer" -> {
+                val from = data["from"] as? String ?: return
+                if (peerConnection == null) {
+                    initWebRTC(from, false)
+                }
+                val sdp = SessionDescription(SessionDescription.Type.OFFER, data["sdp"] as String)
+                peerConnection?.setRemoteDescription(object : SdpObserver {
+                    override fun onSetSuccess() {
+                        val constraints = MediaConstraints()
+                        peerConnection?.createAnswer(object : SdpObserver {
+                            override fun onCreateSuccess(desc: SessionDescription?) {
+                                if (desc != null) {
+                                    peerConnection?.setLocalDescription(this, desc)
+                                    val payload = mapOf(
+                                        "type" to desc.type.canonicalForm(),
+                                        "sdp" to desc.description,
+                                        "to" to from
+                                    )
+                                    webSocket?.send(gson.toJson(payload))
+                                }
+                            }
+                            override fun onSetSuccess() {}
+                            override fun onCreateFailure(e: String?) {}
+                            override fun onSetFailure(e: String?) {}
+                        }, constraints)
+                    }
+                    override fun onCreateSuccess(desc: SessionDescription?) {}
+                    override fun onCreateFailure(e: String?) {}
+                    override fun onSetFailure(e: String?) {}
+                }, sdp)
+
+                pendingCandidates.forEach { peerConnection?.addIceCandidate(it) }
+                pendingCandidates.clear()
+            }
+            "answer" -> {
+                val sdp = SessionDescription(SessionDescription.Type.ANSWER, data["sdp"] as String)
+                peerConnection?.setRemoteDescription(object : SdpObserver {
+                    override fun onSetSuccess() {
+                        pendingCandidates.forEach { peerConnection?.addIceCandidate(it) }
+                        pendingCandidates.clear()
+                    }
+                    override fun onCreateSuccess(desc: SessionDescription?) {}
+                    override fun onCreateFailure(e: String?) {}
+                    override fun onSetFailure(e: String?) {}
+                }, sdp)
+            }
+            "ice" -> {
+                val sdpMid = data["sdpMid"] as? String ?: return
+                val sdpMLineIndex = (data["sdpMLineIndex"] as? Double)?.toInt() ?: return
+                val candidateStr = data["candidate"] as? String ?: return
+                
+                val candidate = IceCandidate(sdpMid, sdpMLineIndex, candidateStr)
+                if (peerConnection?.remoteDescription != null) {
+                    peerConnection?.addIceCandidate(candidate)
+                } else {
+                    pendingCandidates.add(candidate)
+                }
+            }
+        }
+    }
+
+    fun disposeWebRTC(userId: String) {
+        try {
+            Log.d(TAG, "Disposing WebRTC for $userId")
+            
+            // 1. Disable local tracks first
+            localStream?.audioTracks?.forEach { 
+                try { it.setEnabled(false) } catch (e: Exception) {}
+                try { it.dispose() } catch (e: Exception) {}
+            }
+            
+            // 2. Dispose stream
+            localStream?.dispose()
+            localStream = null
+            
+            // 3. Close and dispose PeerConnection
+            peerConnection?.close()
+            peerConnection?.dispose()
+            peerConnection = null
+            
+            pendingCandidates.clear()
+            Log.d(TAG, "✅ WebRTC cerrado correctamente para $userId")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error al cerrar WebRTC: ${e.message}")
+        }
+    }
+}
