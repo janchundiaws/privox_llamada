@@ -3,6 +3,12 @@ package com.example.privox_app1.data.remote
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Intent
+import androidx.core.app.NotificationCompat
+import com.example.privox_app1.MainActivity
 import com.google.gson.Gson
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -32,6 +38,8 @@ class SocketService private constructor(private val context: Context) {
         .pingInterval(10, TimeUnit.SECONDS)
         .build()
     private val gson = Gson()
+    private val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    private val CHANNEL_ID = "call_channel"
 
     var webSocket: WebSocket? = null
     var peerConnection: PeerConnection? = null
@@ -60,6 +68,7 @@ class SocketService private constructor(private val context: Context) {
 
     init {
         initWebRtcFactory()
+        createNotificationChannel()
     }
 
     var currentDistortionMode = com.example.privox_app1.AudioDistortionEngine.DistortionMode.ROBOT
@@ -158,25 +167,36 @@ class SocketService private constructor(private val context: Context) {
         message = "❌ Desconectado"
     }
 
-    suspend fun initiateCall(toUserId: String, toUsername: String): String? {
+    suspend fun initiateCall(toUserId: String, toUsername: String): Pair<String?, String?>? {
+        currentTargetUserId = toUserId
+        currentTargetUsername = toUsername
+        
         val payload = mapOf(
             "type" to "call-init",
             "to" to toUserId,
             "toUsername" to toUsername,
             "meta" to mapOf("mode" to "voice")
         )
+        
+        if (webSocket == null || !isConnected.value) {
+            return null
+        }
+        
         webSocket?.send(gson.toJson(payload))
 
         // Wait for ack with a timeout
         return withTimeoutOrNull(10000) {
             val event = events.first { data ->
-                data["type"] == "call-init-ack" || data["type"] == "call-init-denied" 
+                data["type"] == "call-init-ack" || 
+                data["type"] == "call-init-denied" || 
+                data["type"] == "call-missed" ||
+                data["type"] == "peer-offline"
             }
-            if (event["type"] == "call-init-ack") {
-                event["callId"]?.toString()
-            } else {
-                null
-            }
+            
+            val type = event["type"]?.toString()
+            val callId = if (type == "call-init-ack") event["callId"]?.toString() else null
+            
+            Pair(callId, type)
         }
     }
 
@@ -217,7 +237,8 @@ class SocketService private constructor(private val context: Context) {
                 currentCallId = data["callId"] as? String ?: ""
                 val username = data["fromUsername"] as? String ?: getUsernameById(fromUserId)
                 Log.d(TAG, "Llamada entrante de $username ($fromUserId)")
-                // Navigation and UI should observe the events flow
+                
+                showIncomingCallNotification(username, currentCallId)
             }
             "call-accepted" -> {
                 if (currentTargetUserId != null) {
@@ -493,5 +514,43 @@ class SocketService private constructor(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "❌ Error al cerrar WebRTC: ${e.message}")
         }
+    }
+
+    private fun createNotificationChannel() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Llamadas",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Notificaciones de llamadas entrantes"
+            }
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun showIncomingCallNotification(username: String, callId: String) {
+        if (!Constants.NOTIFICATIONS_ENABLED) return
+
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            putExtra("callId", callId)
+        }
+        
+        val pendingIntent = PendingIntent.getActivity(
+            context, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_menu_call)
+            .setContentTitle("📞 Llamada entrante")
+            .setContentText("$username está llamando...")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_CALL)
+            .setFullScreenIntent(pendingIntent, true)
+            .setAutoCancel(true)
+
+        notificationManager.notify(0, builder.build())
     }
 }

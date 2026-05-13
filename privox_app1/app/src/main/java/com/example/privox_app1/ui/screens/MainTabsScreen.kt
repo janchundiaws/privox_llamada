@@ -28,7 +28,7 @@ fun MainTabsScreen(
     username: String,
     engine: AudioDistortionEngine,
     onSettingsClick: () -> Unit,
-    onCallVoice: (String, String) -> Unit,
+    requestCall: (String, String) -> Unit,
     onChatClick: (String, String) -> Unit,
     onLogoutClick: () -> Unit,
     isConnected: Boolean
@@ -163,8 +163,8 @@ fun MainTabsScreen(
                     onSettingsClick = onSettingsClick,
                     onAddUserClick = { scope.launch { pagerState.animateScrollToPage(1) } },
                     onRequestsClick = { scope.launch { pagerState.animateScrollToPage(2) } },
-                    onCallVoice = { id, name -> onCallVoice(id, name) },
-                    onChatClick = { id, name -> onChatClick(id, name) },
+                    requestCall = requestCall,
+                    onChatClick = onChatClick,
                     onLogoutClick = onLogoutClick,
                     isConnected = isConnected
                 )

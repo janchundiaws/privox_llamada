@@ -2,6 +2,7 @@ package com.example.privox_app1
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.util.Log
 import android.os.Bundle
@@ -48,6 +49,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        handleCallIntent(intent)
         setContent {
             Privox_app1Theme {
                 Surface(
@@ -214,17 +216,31 @@ class MainActivity : ComponentActivity() {
                                 username = loggedInUser,
                                 engine = engine,
                                 onSettingsClick = { currentScreen = "Settings" },
-                                onCallVoice = { targetId, targetName ->
-                                    currentContact = targetName
-                                    currentScreen = "CallingOutgoing"
+                                requestCall = { targetId, targetName ->
                                     scope.launch {
+                                        if (!socketService.isConnected.value) {
+                                            android.widget.Toast.makeText(this@MainActivity, "Debes estar Online para realizar llamadas", android.widget.Toast.LENGTH_LONG).show()
+                                            return@launch
+                                        }
+
                                         val result = socketService.initiateCall(targetId, targetName)
-                                        if (result != null) {
-                                            socketService.currentCallId = result
+                                        val callId = result?.first
+                                        val type = result?.second
+
+                                        if (callId != null) {
+                                            socketService.currentCallId = callId
                                             currentCallFromId = targetId
+                                            currentContact = targetName
+                                            currentScreen = "CallingOutgoing"
                                             socketService.initWebRTC(targetId, true)
                                         } else {
-                                            currentScreen = "Home"
+                                            val errorMsg = when (type) {
+                                                "call-init-denied" -> "$targetName está ocupado en otra llamada."
+                                                "call-missed" -> "Llamada perdida."
+                                                "peer-offline" -> "Usuario destino offline."
+                                                else -> "$targetName no está online."
+                                            }
+                                            android.widget.Toast.makeText(this@MainActivity, errorMsg, android.widget.Toast.LENGTH_LONG).show()
                                         }
                                     }
                                 },
@@ -264,6 +280,19 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         engine.stop()
         super.onDestroy()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleCallIntent(intent)
+    }
+
+    private fun handleCallIntent(intent: Intent) {
+        val callId = intent.getStringExtra("callId")
+        if (callId != null) {
+            Log.d("MainActivity", "Handling call intent for callId: $callId")
+        }
     }
 }
 

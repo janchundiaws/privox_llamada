@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import android.util.Log
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.*
@@ -31,7 +32,7 @@ fun WelcomeScreen(
     onSettingsClick: () -> Unit,
     onAddUserClick: () -> Unit,
     onRequestsClick: () -> Unit,
-    onCallVoice: (String, String) -> Unit,
+    requestCall: (String, String) -> Unit,
     onChatClick: (String, String) -> Unit,
     onLogoutClick: () -> Unit,
     isConnected: Boolean
@@ -41,6 +42,7 @@ fun WelcomeScreen(
     var isLoading by remember { mutableStateOf(true) }
     var showLogoutDialog by remember { mutableStateOf(false) }
     var contactToDelete by remember { mutableStateOf<Map<String, String>?>(null) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
     
     val context = LocalContext.current
     val authService = remember { AuthService(context) }
@@ -194,7 +196,7 @@ fun WelcomeScreen(
                             val cName = contact["username"] ?: ""
                             ContactItem(
                                 contactName = cName,
-                                onCallClick = { onCallVoice(cId, cName) },
+                                onCallClick = { requestCall(cId, cName) },
                                 onChatClick = { onChatClick(cId, cName) },
                                 onDeleteClick = { contactToDelete = contact }
                             )
@@ -237,11 +239,14 @@ fun WelcomeScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        val userId = contactToDelete!!["userId"] ?: ""
+                        val contactUserId = contactToDelete!!["userId"] ?: ""
                         scope.launch {
-                            val result = authService.removeContact(userId)
+                            val result = authService.removeContact(contactUserId)
+                            Log.d("Contact", "Contact deleted: $result")
                             if (result.isSuccess) {
                                 fetchContacts()
+                            } else {
+                                errorMessage = result.exceptionOrNull()?.message ?: "No se pudo eliminar el contacto"
                             }
                             contactToDelete = null
                         }
@@ -253,6 +258,19 @@ fun WelcomeScreen(
             dismissButton = {
                 TextButton(onClick = { contactToDelete = null }) {
                     Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    if (errorMessage != null) {
+        AlertDialog(
+            onDismissRequest = { errorMessage = null },
+            title = { Text("Error al eliminar contacto") },
+            text = { Text(errorMessage!!) },
+            confirmButton = {
+                TextButton(onClick = { errorMessage = null }) {
+                    Text("Entendido")
                 }
             }
         )

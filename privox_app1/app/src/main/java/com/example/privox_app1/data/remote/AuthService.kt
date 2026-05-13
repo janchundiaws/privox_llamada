@@ -32,8 +32,8 @@ class AuthService(private val context: Context) {
             }
 
             val timestamp = System.currentTimeMillis() * 1000 // To match microseconds format approx
-            val suffix = String.format("%06d", Random.nextInt(1000000))
-            val username = "ghox_${timestamp}_$suffix"
+            val suffix = String.format("%04d", Random.nextInt(1000000))
+            val username = "${timestamp}_$suffix"
             val displayName = "Usuario $suffix"
 
             val jsonBody = """
@@ -144,10 +144,11 @@ class AuthService(private val context: Context) {
 
                     for (u in usersList) {
                         if (u is Map<*, *>) {
+                            val id = u["_id"]?.toString() ?: ""
                             val userId = u["userId"]?.toString() ?: ""
                             val username = u["username"]?.toString() ?: u["displayName"]?.toString() ?: ""
                             if (userId.isNotEmpty() && username.isNotEmpty() && username != myUsername) {
-                                contacts.add(mapOf("userId" to userId, "username" to username))
+                                contacts.add(mapOf("id" to id, "userId" to userId, "username" to username))
                             }
                         }
                     }
@@ -304,18 +305,13 @@ class AuthService(private val context: Context) {
     suspend fun removeContact(targetUserId: String): Result<Boolean> = withContext(Dispatchers.IO) {
         try {
             val token = prefs.getString("token", "") ?: ""
-            val url = if (BASE_URL.endsWith("/")) "${BASE_URL}api/users/removecontact" else "$BASE_URL/api/users/removecontact"
+            val url = if (BASE_URL.endsWith("/")) "${BASE_URL}api/requests/contact/$targetUserId" else "$BASE_URL/api/requests/contact/$targetUserId"
             
-            val jsonBody = """
-                {
-                    "to": "$targetUserId"
-                }
-            """.trimIndent()
-
             val request = Request.Builder()
                 .url(url)
                 .header("Authorization", "Bearer $token")
-                .post(jsonBody.toRequestBody(JSON))
+                .header("User-Agent", "GhoxClient/1.0")
+                .delete()
                 .build()
 
             client.newCall(request).execute().use { response ->
