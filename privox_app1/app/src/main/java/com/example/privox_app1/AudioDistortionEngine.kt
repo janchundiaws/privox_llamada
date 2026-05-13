@@ -23,7 +23,8 @@ class AudioDistortionEngine {
         VOCODER("Vocoder", 0.9f),
         ALIEN("Alien", 1.25f),
         FEMALE("Mujer", 1.15f),
-        MAN("Hombre", 0.85f)
+        MAN("Hombre", 0.85f),
+        SQUIRREL("Ardilla", 1.6f)
     }
 
     companion object {
@@ -274,8 +275,18 @@ class AudioDistortionEngine {
         buffer.order(java.nio.ByteOrder.nativeOrder())
         buffer.asShortBuffer().get(inputShorts)
         
+        val firstSampleBefore = inputShorts[0]
+        
         // Process
         processFrame(inputShorts, outputShorts, shortsCount, mode)
+        
+        val firstSampleAfter = outputShorts[0]
+        if (firstSampleBefore != firstSampleAfter) {
+            // Log once in a while
+            if (System.currentTimeMillis() % 1000 < 20) {
+                Log.d("AudioDistortion", "Buffer modified: $firstSampleBefore -> $firstSampleAfter")
+            }
+        }
         
         // Write back to ByteBuffer
         buffer.position(originalPosition)
@@ -311,13 +322,16 @@ class AudioDistortionEngine {
 
         // Pipeline: Noise suppression -> VAD -> STFT Pitch Shift -> Formant correction
         noiseSuppression(samples)
-        if (!voiceActivityDetection(samples)) {
+        val isVoice = voiceActivityDetection(samples)
+        if (!isVoice) {
             // If no voice, pass through
             for (i in 0 until length) {
                 output[i] = input[i]
             }
             return output
         }
+        
+        Log.d("AudioDistortion", "Voz detectada, aplicando efecto STFT...")
 
         if (mode != DistortionMode.NONE) {
             stftPitchShift(samples, mode.pitchFactor)
@@ -344,7 +358,7 @@ class AudioDistortionEngine {
 
     private fun voiceActivityDetection(samples: DoubleArray): Boolean {
         val rms = kotlin.math.sqrt(samples.map { it * it }.average())
-        return rms > 0.02 // Simple threshold
+        return rms > 0.005 // Lower threshold for sensitivity
     }
 
     private fun stftPitchShift(samples: DoubleArray, pitchFactor: Float) {
@@ -355,11 +369,14 @@ class AudioDistortionEngine {
         }
         val shifted = processPitchShift(shortSamples, pitchFactor)
         if (shifted.size != samples.size) {
+            Log.e("AudioDistortion", "Error: shifted size ${shifted.size} != samples size ${samples.size}")
             return
         }
         for (i in samples.indices) {
             samples[i] = shifted[i] / 32768.0
         }
+        // Log to verify
+        // Log.d("AudioDistortion", "Pitch shift completado. Factor: $pitchFactor")
     }
 
     private fun formantCorrection(samples: DoubleArray) {

@@ -62,6 +62,21 @@ class MainActivity : ComponentActivity() {
                     var loggedInUser by remember { mutableStateOf(savedUsername) }
                     var currentContact by remember { mutableStateOf("") }
                     val scope = rememberCoroutineScope()
+
+                    // Request permissions at start
+                    val launcher = rememberLauncherForActivityResult(
+                        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+                    ) { permissions ->
+                        Log.d("MainActivity", "Permissions granted: $permissions")
+                    }
+
+                    LaunchedEffect(Unit) {
+                        val permissions = mutableListOf(Manifest.permission.RECORD_AUDIO)
+                        if (android.os.Build.VERSION.SDK_INT >= 33) {
+                            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                        launcher.launch(permissions.toTypedArray())
+                    }
                     
                     var currentCallFromId by remember { mutableStateOf("") }
                     var callDuration by remember { mutableStateOf(0) }
@@ -129,6 +144,8 @@ class MainActivity : ComponentActivity() {
                                     }
                                     "call-accepted" -> {
                                         // Emisor receives this
+                                        val fromId = event["from"] as? String ?: currentCallFromId
+                                        socketService.initWebRTC(fromId, true)
                                         currentScreen = "Call"
                                     }
                                     "call-reject", "hangup" -> {
@@ -157,11 +174,10 @@ class MainActivity : ComponentActivity() {
                                 username = currentContact,
                                 isEmisor = false,
                                 onAccept = {
-                                    val callId = socketService.currentCallId
-                                    socketService.acceptCall(callId, currentCallFromId, currentContact)
                                     scope.launch {
+                                        socketService.acceptCall(socketService.currentCallId, currentCallFromId, loggedInUser)
                                         socketService.initWebRTC(currentCallFromId, false)
-                                        currentScreen = "Call" 
+                                        currentScreen = "Call"
                                     }
                                 },
                                 onReject = {
@@ -183,6 +199,13 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         "Call" -> {
+                            // Auto-enable distortion for squirrel mode as requested
+                            LaunchedEffect(Unit) {
+                                isDistortionEnabled = true
+                                socketService.isDistortionEnabled = true
+                                socketService.currentDistortionMode = com.example.privox_app1.AudioDistortionEngine.DistortionMode.SQUIRREL
+                            }
+                            
                             com.example.privox_app1.ui.screens.CallScreen(
                                 username = currentContact,
                                 callDurationSeconds = callDuration,
@@ -197,12 +220,6 @@ class MainActivity : ComponentActivity() {
                                     isSpeakerOn = !isSpeakerOn
                                     val audioManager = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
                                     audioManager.isSpeakerphoneOn = isSpeakerOn
-                                },
-                                onDistortionToggle = {
-                                    isDistortionEnabled = !isDistortionEnabled
-                                    socketService.isDistortionEnabled = isDistortionEnabled
-                                    // Use default ROBOT mode as requested (or current active mode)
-                                    socketService.currentDistortionMode = com.example.privox_app1.AudioDistortionEngine.DistortionMode.ROBOT
                                 },
                                 onHangup = {
                                     socketService.hangupCall(socketService.currentCallId, currentCallFromId)
@@ -232,7 +249,6 @@ class MainActivity : ComponentActivity() {
                                             currentCallFromId = targetId
                                             currentContact = targetName
                                             currentScreen = "CallingOutgoing"
-                                            socketService.initWebRTC(targetId, true)
                                         } else {
                                             val errorMsg = when (type) {
                                                 "call-init-denied" -> "$targetName está ocupado en otra llamada."

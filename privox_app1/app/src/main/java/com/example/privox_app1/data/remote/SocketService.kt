@@ -71,8 +71,15 @@ class SocketService private constructor(private val context: Context) {
         createNotificationChannel()
     }
 
+    @Volatile
     var currentDistortionMode = com.example.privox_app1.AudioDistortionEngine.DistortionMode.ROBOT
-    var isDistortionEnabled = false
+    
+    @Volatile
+    var isDistortionEnabled: Boolean = false
+        set(value) {
+            field = value
+            Log.d("SocketService", "Distorsión activada: $value")
+        }
     private val distortionEngine = com.example.privox_app1.AudioDistortionEngine()
 
     private fun initWebRtcFactory() {
@@ -84,12 +91,38 @@ class SocketService private constructor(private val context: Context) {
         
         val options = PeerConnectionFactory.Options()
         
-        val adm = org.webrtc.audio.JavaAudioDeviceModule.builder(context)
+        var recordLogCount = 0
+        var playLogCount = 0
+
+        val builder = org.webrtc.audio.JavaAudioDeviceModule.builder(context)
+        val builderMethods = builder.javaClass.declaredMethods.map { it.name }.distinct().sorted()
+        Log.d("AudioDebug", "ADM Builder methods: $builderMethods")
+        
+        val adm = builder
             .setAudioSource(android.media.MediaRecorder.AudioSource.MIC)
             .setSamplesReadyCallback { samples ->
+                if (recordLogCount == 0) {
+                    val fields = samples.javaClass.declaredFields.map { "${it.name}: ${it.type}" }
+                    Log.d("AudioDebug", "Samples class fields: $fields")
+                }
+                
                 if (isDistortionEnabled) {
+                    val firstByteBefore = samples.data[0]
                     val buffer = java.nio.ByteBuffer.wrap(samples.data)
+                    buffer.order(java.nio.ByteOrder.nativeOrder())
                     distortionEngine.processByteBuffer(buffer, samples.data.size, currentDistortionMode)
+                    val firstByteAfter = samples.data[0]
+                    
+                    if (recordLogCount % 100 == 0) {
+                        Log.d("AudioDistortion", "Procesado: modo=${currentDistortionMode.label} before=$firstByteBefore after=$firstByteAfter")
+                    }
+                }
+                
+                recordLogCount++
+                if (recordLogCount >= 100) {
+                    val rms = calculateRMS(samples.data)
+                    Log.d("AudioLog", "🎙️ Transmitiendo (Emisor) - Nivel RMS: $rms")
+                    recordLogCount = 0
                 }
             }
             .createAudioDeviceModule()
@@ -339,7 +372,10 @@ class SocketService private constructor(private val context: Context) {
     }
 
     suspend fun initWebRTC(toUserId: String, isEmisor: Boolean) {
-        if (peerConnection != null) disposeWebRTC(toUserId)
+        if (peerConnection != null) {
+            Log.d(TAG, "WebRTC already initialized, skipping...")
+            return
+        }
         try {
             val iceServers = getIceServers()
             
@@ -428,6 +464,7 @@ class SocketService private constructor(private val context: Context) {
 
     suspend fun handleSignal(data: Map<String, Any?>) {
         val type = data["type"] as? String ?: return
+        Log.d("WebRTCLog", "Recibiendo señal: $type")
         when (type) {
             "offer" -> {
                 val from = data["from"] as? String ?: return
@@ -552,5 +589,18 @@ class SocketService private constructor(private val context: Context) {
             .setAutoCancel(true)
 
         notificationManager.notify(0, builder.build())
+    }
+
+    private fun calculateRMS(data: ByteArray): Double {
+        var sum = 0.0
+        val shorts = java.nio.ByteBuffer.wrap(data).order(java.nio.ByteOrder.nativeOrder()).asShortBuffer()
+        val count = shorts.remaining()
+        if (count == 0) return 0.0
+        
+        while (shorts.hasRemaining()) {
+            val sample = shorts.get().toDouble()
+            sum += sample * sample
+        }
+        return Math.sqrt(sum / count)
     }
 }

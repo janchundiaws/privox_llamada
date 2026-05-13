@@ -1,5 +1,9 @@
 package com.example.privox_app1.ui.screens
 
+import android.media.MediaPlayer
+import androidx.compose.runtime.DisposableEffect
+import com.example.privox_app1.R
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -17,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun CallingScreen(
@@ -25,6 +30,19 @@ fun CallingScreen(
     onAccept: () -> Unit,
     onReject: () -> Unit
 ) {
+    val context = LocalContext.current
+    
+    DisposableEffect(Unit) {
+        val mediaPlayer = MediaPlayer.create(context, R.raw.call_soung)
+        mediaPlayer?.isLooping = true
+        mediaPlayer?.start()
+        
+        onDispose {
+            mediaPlayer?.stop()
+            mediaPlayer?.release()
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()

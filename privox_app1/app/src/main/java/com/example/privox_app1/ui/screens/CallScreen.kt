@@ -3,6 +3,7 @@ package com.example.privox_app1.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -27,7 +28,6 @@ fun CallScreen(
     isDistortionEnabled: Boolean,
     onMuteToggle: () -> Unit,
     onSpeakerToggle: () -> Unit,
-    onDistortionToggle: () -> Unit,
     onHangup: () -> Unit
 ) {
     val formattedDuration = remember(callDurationSeconds) {
@@ -46,6 +46,22 @@ fun CallScreen(
             modifier = Modifier.padding(top = 100.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // Indicator
+            Surface(
+                color = Color(0xFFAB47BC).copy(alpha = 0.8f),
+                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier.padding(bottom = 32.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Filled.GraphicEq, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Distorsión Activa (Ardilla)", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
+            }
+
             // Avatar
             Box(
                 modifier = Modifier
@@ -108,18 +124,6 @@ fun CallScreen(
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("Mute", color = Color.White, fontSize = 12.sp)
-                }                // Distortion Button
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    FloatingActionButton(
-                        onClick = onDistortionToggle,
-                        containerColor = if (isDistortionEnabled) Color(0xFFAB47BC) else Color(0xFF424242),
-                        contentColor = Color.White,
-                        shape = CircleShape
-                    ) {
-                        Icon(Icons.Filled.GraphicEq, contentDescription = "Distorsión")
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("Voz Robot", color = Color.White, fontSize = 12.sp)
                 }
 
                 // Speaker Button
