@@ -22,11 +22,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.privox_app1.data.remote.AuthService
+import com.example.privox_app1.ui.components.PrivoxTopBar
+import com.example.privox_app1.ui.components.LogoutDialog
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun UsersRequestsScreen(onBack: () -> Unit) {
+fun UsersRequestsScreen(
+    onBack: () -> Unit,
+    onSettingsClick: () -> Unit,
+    onLogoutClick: () -> Unit
+) {
     val context = LocalContext.current
     val authService = remember { AuthService(context) }
     val scope = rememberCoroutineScope()
@@ -36,6 +42,7 @@ fun UsersRequestsScreen(onBack: () -> Unit) {
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showBottomSheet by remember { mutableStateOf(false) }
+    var showLogoutDialog by remember { mutableStateOf(false) }
     var selectedRequest by remember { mutableStateOf<Map<String, String>?>(null) }
 
     fun fetchRequests() {
@@ -58,6 +65,14 @@ fun UsersRequestsScreen(onBack: () -> Unit) {
     }
 
     Scaffold(
+        topBar = {
+            PrivoxTopBar(
+                title = "",
+                onBack = onBack,
+                onSettingsClick = onSettingsClick,
+                onLogoutClick = { showLogoutDialog = true }
+            )
+        }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -226,5 +241,15 @@ fun UsersRequestsScreen(onBack: () -> Unit) {
                 }
             }
         }
+    }
+
+    if (showLogoutDialog) {
+        LogoutDialog(
+            onDismiss = { showLogoutDialog = false },
+            onConfirm = {
+                showLogoutDialog = false
+                onLogoutClick()
+            }
+        )
     }
 }

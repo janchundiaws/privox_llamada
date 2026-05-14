@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
 import com.example.privox_app1.data.remote.AuthService
+import com.example.privox_app1.ui.components.PrivoxTopBar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,17 +73,9 @@ fun WelcomeScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {},
-                actions = {
-                    IconButton(onClick = onSettingsClick) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color.Gray)
-                    }
-                    IconButton(onClick = { showLogoutDialog = true }) {
-                        Icon(Icons.Default.ExitToApp, contentDescription = "Cerrar sesión", tint = Color.Red)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+            PrivoxTopBar(
+                onSettingsClick = onSettingsClick,
+                onLogoutClick = { showLogoutDialog = true }
             )
         }
     ) { paddingValues ->
@@ -209,24 +202,11 @@ fun WelcomeScreen(
     }
 
     if (showLogoutDialog) {
-        AlertDialog(
-            onDismissRequest = { showLogoutDialog = false },
-            title = { Text("Cerrar sesión") },
-            text = { Text("¿Estás seguro de que deseas cerrar sesión?") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showLogoutDialog = false
-                        onLogoutClick()
-                    }
-                ) {
-                    Text("Cerrar sesión", color = Color.Red)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showLogoutDialog = false }) {
-                    Text("Cancelar")
-                }
+        com.example.privox_app1.ui.components.LogoutDialog(
+            onDismiss = { showLogoutDialog = false },
+            onConfirm = {
+                showLogoutDialog = false
+                onLogoutClick()
             }
         )
     }

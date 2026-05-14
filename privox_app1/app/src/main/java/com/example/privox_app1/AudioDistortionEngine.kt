@@ -24,7 +24,7 @@ class AudioDistortionEngine {
         ALIEN("Alien", 1.45f),
         FEMALE("Mujer", 1.42f),
         MAN("Hombre", 0.78f),
-        SQUIRREL("Ardilla", 2.35f)
+        SQUIRREL("Ardilla", 1.95f)
     }
 
     companion object {
@@ -349,8 +349,25 @@ class AudioDistortionEngine {
                 }
                 DistortionMode.SQUIRREL -> {
                     for (i in samples.indices) {
-                        // armónicos extra
-                        samples[i] = samples[i] + (kotlin.math.sin(samples[i] * 6.0) * 0.12)
+
+                        val dry =
+                            samples[i]
+
+
+                        val harmonic =
+                            kotlin.math.sin(
+                                dry * 3.0
+                            ) * 0.045
+
+
+                        val wet =
+                            dry + harmonic
+
+
+                        // mezcla suave
+                        samples[i] =
+                            (dry * 0.70) +
+                            (wet * 0.30)
                     }
                 }
                 else -> {}
@@ -403,12 +420,32 @@ class AudioDistortionEngine {
     private fun formantCorrection(samples: DoubleArray, mode: DistortionMode) {
         when (mode) {
             DistortionMode.SQUIRREL -> {
-                // quitar graves y dar mucho brillo
+                // quitar graves sin adelgazar demasiado
                 highPassState.apply(samples)
+
+
                 for (i in samples.indices) {
-                    val s = samples[i]
-                    val bright = s * 1.45
-                    samples[i] = kotlin.math.tanh(bright * 1.25)
+
+                    val dry =
+                        samples[i]
+
+
+                    // brillo suave
+                    val bright =
+                        dry * 1.12
+
+
+                    // compresión natural
+                    val compressed =
+                        kotlin.math.tanh(
+                            bright * 0.95
+                        )
+
+
+                    // dry/wet
+                    samples[i] =
+                        (dry * 0.55) +
+                        (compressed * 0.45)
                 }
             }
             DistortionMode.FEMALE -> {

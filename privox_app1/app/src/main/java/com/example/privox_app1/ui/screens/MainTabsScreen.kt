@@ -169,10 +169,14 @@ fun MainTabsScreen(
                     isConnected = isConnected
                 )
                 1 -> UsersAddScreen(
-                    onBack = { scope.launch { pagerState.animateScrollToPage(0) } }
+                    onBack = { scope.launch { pagerState.animateScrollToPage(0) } },
+                    onSettingsClick = onSettingsClick,
+                    onLogoutClick = onLogoutClick
                 )
                 2 -> UsersRequestsScreen(
-                    onBack = { scope.launch { pagerState.animateScrollToPage(0) } }
+                    onBack = { scope.launch { pagerState.animateScrollToPage(0) } },
+                    onSettingsClick = onSettingsClick,
+                    onLogoutClick = onLogoutClick
                 )
                 3 -> VoiceChangerTestScreen(engine = engine)
             }
