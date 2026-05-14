@@ -18,6 +18,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import android.content.Context
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.zIndex
+import android.os.PowerManager
 
 @Composable
 fun CallScreen(
@@ -36,10 +44,40 @@ fun CallScreen(
         "$minutes:$seconds"
     }
 
+    val context = LocalContext.current
+
+    DisposableEffect(isSpeakerOn) {
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+        val wakeLock = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+            if (powerManager.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) {
+                powerManager.newWakeLock(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, "Privox:CallProximity")
+            } else null
+        } else null
+
+        // Only acquire if speaker is OFF
+        if (!isSpeakerOn) {
+            wakeLock?.acquire()
+        }
+
+        onDispose {
+            if (wakeLock?.isHeld == true) {
+                wakeLock.release()
+            }
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black),
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF0D47A1), // Deep Blue
+                        Color(0xFF1A237E), // Indigo
+                        Color(0xFF000000)  // Black
+                    )
+                )
+            ),
         contentAlignment = Alignment.TopCenter
     ) {
         Column(
