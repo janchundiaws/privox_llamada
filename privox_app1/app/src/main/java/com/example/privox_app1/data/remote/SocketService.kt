@@ -94,35 +94,27 @@ class SocketService private constructor(private val context: Context) {
         var recordLogCount = 0
         var playLogCount = 0
 
-        val builder = org.webrtc.audio.JavaAudioDeviceModule.builder(context)
-        val builderMethods = builder.javaClass.declaredMethods.map { it.name }.distinct().sorted()
-        Log.d("AudioDebug", "ADM Builder methods: $builderMethods")
-        
-        val adm = builder
+        val adm = org.webrtc.audio.JavaAudioDeviceModule.builder(context)
             .setAudioSource(android.media.MediaRecorder.AudioSource.MIC)
-            .setSamplesReadyCallback { samples ->
-                if (recordLogCount == 0) {
-                    val fields = samples.javaClass.declaredFields.map { "${it.name}: ${it.type}" }
-                    Log.d("AudioDebug", "Samples class fields: $fields")
-                }
-                
-                if (isDistortionEnabled) {
-                    val firstByteBefore = samples.data[0]
-                    val buffer = java.nio.ByteBuffer.wrap(samples.data)
-                    buffer.order(java.nio.ByteOrder.nativeOrder())
-                    distortionEngine.processByteBuffer(buffer, samples.data.size, currentDistortionMode)
-                    val firstByteAfter = samples.data[0]
-                    
-                    if (recordLogCount % 100 == 0) {
-                        Log.d("AudioDistortion", "Procesado: modo=${currentDistortionMode.label} before=$firstByteBefore after=$firstByteAfter")
+            .setAudioRecordDataCallback(object : org.webrtc.audio.AudioRecordDataCallback {
+                override fun onAudioDataRecorded(format: Int, channels: Int, rate: Int, buffer: java.nio.ByteBuffer) {
+                    if (isDistortionEnabled) {
+                        // Modificamos el búfer directamente en memoria para que WebRTC lo transmita procesado
+                        distortionEngine.processByteBuffer(buffer, buffer.remaining(), currentDistortionMode)
+                        
+                        recordLogCount++
+                        if (recordLogCount >= 100) {
+                            Log.d("AudioDistortion", "🎙️ Transmitiendo con distorsión activa: ${currentDistortionMode.label}")
+                            recordLogCount = 0
+                        }
                     }
                 }
-                
-                recordLogCount++
-                if (recordLogCount >= 100) {
+            })
+            .setSamplesReadyCallback { samples ->
+                // Mantenemos este callback solo para telemetría de niveles (RMS)
+                if (recordLogCount % 100 == 0) {
                     val rms = calculateRMS(samples.data)
-                    Log.d("AudioLog", "🎙️ Transmitiendo (Emisor) - Nivel RMS: $rms")
-                    recordLogCount = 0
+                    // Log opcional para monitorear volumen
                 }
             }
             .createAudioDeviceModule()
