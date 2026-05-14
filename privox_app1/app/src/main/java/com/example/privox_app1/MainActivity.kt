@@ -218,8 +218,7 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onSpeakerToggle = {
                                     isSpeakerOn = !isSpeakerOn
-                                    val audioManager = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
-                                    audioManager.isSpeakerphoneOn = isSpeakerOn
+                                    socketService.setSpeakerphoneOn(isSpeakerOn)
                                 },
                                 onHangup = {
                                     socketService.hangupCall(socketService.currentCallId, currentCallFromId)

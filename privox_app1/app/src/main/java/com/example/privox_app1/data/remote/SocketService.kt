@@ -125,6 +125,17 @@ class SocketService private constructor(private val context: Context) {
             .createPeerConnectionFactory()
     }
 
+    fun setSpeakerphoneOn(on: Boolean) {
+        try {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+            audioManager.mode = android.media.AudioManager.MODE_IN_COMMUNICATION
+            audioManager.isSpeakerphoneOn = on
+            Log.d(TAG, "Altavoz conmutado: $on")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error al conmutar altavoz: ${e.message}")
+        }
+    }
+
     fun connect() {
         if (isConnecting || isConnected.value) return
         isConnecting = true
