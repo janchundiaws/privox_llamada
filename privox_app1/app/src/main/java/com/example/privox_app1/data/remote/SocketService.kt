@@ -44,6 +44,8 @@ class SocketService private constructor(private val context: Context) {
     var webSocket: WebSocket? = null
     var peerConnection: PeerConnection? = null
     var localStream: MediaStream? = null
+    private var localAudioSource: AudioSource? = null
+    private var localAudioTrack: AudioTrack? = null
     
     private val _isConnected = MutableStateFlow(false)
     val isConnected = _isConnected.asStateFlow()
@@ -274,7 +276,7 @@ class SocketService private constructor(private val context: Context) {
                 val username = data["fromUsername"] as? String ?: getUsernameById(fromUserId)
                 Log.d(TAG, "Llamada entrante de $username ($fromUserId)")
                 
-                showIncomingCallNotification(username, currentCallId)
+                showIncomingCallNotification(username, fromUserId, currentCallId)
             }
             "call-accepted" -> {
                 if (currentTargetUserId != null) {
@@ -422,19 +424,16 @@ class SocketService private constructor(private val context: Context) {
                 mandatory.add(MediaConstraints.KeyValuePair("autoGainControl", "false"))
             }
             
-            val audioSource = peerConnectionFactory?.createAudioSource(audioConstraints)
-            // Try to set a processor
-            try {
-                // audioSource?.setAudioProcessor(...) 
-            } catch(e: Exception) {}
+            localAudioSource = peerConnectionFactory?.createAudioSource(audioConstraints)
             
-            val audioTrack = peerConnectionFactory?.createAudioTrack("ARDAMSa0", audioSource)
+            localAudioTrack = peerConnectionFactory?.createAudioTrack("ARDAMSa0", localAudioSource)
 
             localStream = peerConnectionFactory?.createLocalMediaStream("ARDAMS")
-            localStream?.addTrack(audioTrack)
+            localStream?.addTrack(localAudioTrack)
 
-            if (audioTrack != null) {
-                peerConnection?.addTrack(audioTrack, listOf("ARDAMS"))
+            if (localAudioTrack != null) {
+                peerConnection?.addTrack(localAudioTrack, listOf("ARDAMS"))
+                Log.d("WebRTCLog", "✅ Track de audio local añadido correctamente")
             }
 
             if (isEmisor) {
@@ -530,30 +529,71 @@ class SocketService private constructor(private val context: Context) {
         }
     }
 
-    fun disposeWebRTC(userId: String) {
+    fun disposeWebRTC(userId: String?) {
+        Log.d(TAG, "--- INICIO DISPOSE WEBRTC para $userId ---")
         try {
-            Log.d(TAG, "Disposing WebRTC for $userId")
-            
-            // 1. Disable local tracks first
-            localStream?.audioTracks?.forEach { 
-                try { it.setEnabled(false) } catch (e: Exception) {}
-                try { it.dispose() } catch (e: Exception) {}
+            // 1. Desactivar y liberar track de audio
+            localAudioTrack?.let {
+                Log.d(TAG, "Paso 1: Liberando AudioTrack...")
+                it.setEnabled(false)
+                it.dispose()
+                Log.d(TAG, "Paso 1: OK")
             }
+            localAudioTrack = null
             
-            // 2. Dispose stream
-            localStream?.dispose()
+            // 2. Liberar fuente de audio
+            localAudioSource?.let {
+                Log.d(TAG, "Paso 2: Liberando AudioSource...")
+                it.dispose()
+                Log.d(TAG, "Paso 2: OK")
+            }
+            localAudioSource = null
+            
+            // 3. Desactivar track en el stream
+            localStream?.let { stream ->
+                Log.d(TAG, "Paso 3: Limpiando tracks del stream...")
+                stream.audioTracks?.forEach { 
+                    try { 
+                        it.setEnabled(false)
+                        it.dispose() 
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error liberando track del stream: ${e.message}")
+                    }
+                }
+                stream.dispose()
+                Log.d(TAG, "Paso 3: OK")
+            }
             localStream = null
             
-            // 3. Close and dispose PeerConnection
-            peerConnection?.close()
-            peerConnection?.dispose()
+            // 4. Cerrar y liberar PeerConnection
+            peerConnection?.let {
+                Log.d(TAG, "Paso 4: Cerrando PeerConnection...")
+                it.close()
+                it.dispose()
+                Log.d(TAG, "Paso 4: OK")
+            }
             peerConnection = null
             
+            currentTargetUserId = null
+            currentTargetUsername = null
             pendingCandidates.clear()
-            Log.d(TAG, "✅ WebRTC cerrado correctamente para $userId")
+            
+            // 5. Resetear audio manager para liberar micrófono
+            try {
+                Log.d(TAG, "Paso 5: Reseteando AudioManager...")
+                val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+                audioManager.mode = android.media.AudioManager.MODE_NORMAL
+                audioManager.isSpeakerphoneOn = false
+                Log.d(TAG, "✅ Paso 5: AudioManager reseteado a NORMAL")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error reseteando AudioManager: ${e.message}")
+            }
+
+            Log.d(TAG, "✅ WebRTC y recursos de audio liberados por completo")
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Error al cerrar WebRTC: ${e.message}")
+            Log.e(TAG, "❌ Error crítico al cerrar WebRTC: ${e.message}")
         }
+        Log.d(TAG, "--- FIN DISPOSE WEBRTC ---")
     }
 
     private fun createNotificationChannel() {
@@ -569,12 +609,15 @@ class SocketService private constructor(private val context: Context) {
         }
     }
 
-    private fun showIncomingCallNotification(username: String, callId: String) {
+    private fun showIncomingCallNotification(username: String, callerId: String, callId: String) {
         if (!Constants.NOTIFICATIONS_ENABLED) return
 
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             putExtra("callId", callId)
+            putExtra("fromId", callerId)
+            putExtra("fromName", username)
+            putExtra("screen", "CallingIncoming")
         }
         
         val pendingIntent = PendingIntent.getActivity(

@@ -46,11 +46,12 @@ import com.example.privox_app1.data.remote.SocketService
 
 class MainActivity : ComponentActivity() {
     private val engine = AudioDistortionEngine()
+    private val intentAction = mutableStateOf<Intent?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        handleCallIntent(intent)
+        intentAction.value = intent
         setContent {
             Privox_app1Theme {
                 Surface(
@@ -87,6 +88,28 @@ class MainActivity : ComponentActivity() {
 
                     val socketService = remember { com.example.privox_app1.data.remote.SocketService.getInstance(this@MainActivity) }
                     val isConnected by socketService.isConnected.collectAsState()
+                    
+                    // Handle Intent Actions (like clicking notifications)
+                    val action by intentAction
+                    LaunchedEffect(action) {
+                        action?.let { intent ->
+                            val screen = intent.getStringExtra("screen")
+                            val callId = intent.getStringExtra("callId")
+                            val fromId = intent.getStringExtra("fromId")
+                            val fromName = intent.getStringExtra("fromName")
+                            
+                            if (screen == "CallingIncoming" && callId != null && fromId != null) {
+                                Log.d("MainActivity", "🚀 Notificación clickeada: Navegando a CallingIncoming de $fromName ($fromId)")
+                                socketService.currentCallId = callId
+                                currentCallFromId = fromId
+                                currentContact = fromName ?: fromId
+                                currentScreen = "CallingIncoming"
+                                intentAction.value = null // Consume action
+                            } else {
+                                Log.d("MainActivity", "Intent recibido pero no es para llamada entrante: screen=$screen")
+                            }
+                        }
+                    }
 
                     LaunchedEffect(loggedInUser) {
                         if (loggedInUser.isNotEmpty()) {
@@ -120,6 +143,22 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    // Refresco dinámico de estilo de voz al iniciar cualquier fase de llamada
+                    LaunchedEffect(currentScreen) {
+                        if (currentScreen == "CallingIncoming" || currentScreen == "CallingOutgoing" || currentScreen == "Call") {
+                            val savedStyle = prefs.getString("voice_style", "ROBOT") ?: "ROBOT"
+                            try {
+                                val mode = com.example.privox_app1.AudioDistortionEngine.DistortionMode.valueOf(savedStyle)
+                                socketService.currentDistortionMode = mode
+                                socketService.isDistortionEnabled = true
+                                isDistortionEnabled = true
+                                Log.d("MainActivity", "🔄 Estilo de voz configurado para la sesión: ${mode.label}")
+                            } catch (e: Exception) {
+                                Log.e("MainActivity", "Error al cargar estilo de voz: $e")
+                            }
+                        }
+                    }
+
                     // Observe socket events
                     LaunchedEffect(Unit) {
                         socketService.events.collect { event ->
@@ -127,6 +166,7 @@ class MainActivity : ComponentActivity() {
                                 val type = event["type"] as? String
                                 when (type) {
                                     "incoming-call" -> {
+                                        Log.d("MainActivity", "🔔 Evento socket: Llamada entrante de $currentCallFromId")
                                         // Safety: only accept incoming calls if we are not busy
                                         if (currentScreen == "Home") {
                                             val fromId = event["from"] as? String ?: ""
@@ -138,18 +178,19 @@ class MainActivity : ComponentActivity() {
                                             currentContact = fromUsername
                                             currentScreen = "CallingIncoming"
                                         } else {
-                                            // Optional: send busy signal if protocol supports it
-                                            Log.d("MainActivity", "Ignorando llamada entrante porque el usuario está ocupado en $currentScreen")
+                                            Log.d("MainActivity", "⚠️ Ignorando llamada entrante porque el usuario está ocupado en $currentScreen")
                                         }
                                     }
                                     "call-accepted" -> {
-                                        // Emisor receives this
+                                        Log.d("MainActivity", "✅ Evento socket: Llamada aceptada por el destino")
                                         val fromId = event["from"] as? String ?: currentCallFromId
                                         socketService.initWebRTC(fromId, true)
                                         currentScreen = "Call"
                                     }
                                     "call-reject", "hangup" -> {
+                                        Log.d("MainActivity", "📴 Evento socket: $type recibido")
                                         if (currentScreen != "Home") {
+                                            Log.d("MainActivity", "Finalizando sesión actual y regresando a Home")
                                             currentScreen = "Home"
                                             socketService.disposeWebRTC(currentCallFromId)
                                         }
@@ -199,18 +240,6 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         "Call" -> {
-                            LaunchedEffect(Unit) {
-                                val savedStyle = prefs.getString("voice_style", "ROBOT") ?: "ROBOT"
-                                try {
-                                    val mode = com.example.privox_app1.AudioDistortionEngine.DistortionMode.valueOf(savedStyle)
-                                    socketService.currentDistortionMode = mode
-                                } catch (e: Exception) {
-                                    Log.e("MainActivity", "Error parsing voice style: $e")
-                                }
-                                isDistortionEnabled = true
-                                socketService.isDistortionEnabled = true
-                            }
-                            
                             com.example.privox_app1.ui.screens.CallScreen(
                                 username = currentContact,
                                 callDurationSeconds = callDuration,
@@ -227,6 +256,7 @@ class MainActivity : ComponentActivity() {
                                     socketService.setSpeakerphoneOn(isSpeakerOn)
                                 },
                                 onHangup = {
+                                    Log.d("MainActivity", "⏹️ Botón colgar presionado")
                                     socketService.hangupCall(socketService.currentCallId, currentCallFromId)
                                     socketService.disposeWebRTC(currentCallFromId)
                                     currentScreen = "Home"
@@ -322,7 +352,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        handleCallIntent(intent)
+        intentAction.value = intent
     }
 
     private fun handleCallIntent(intent: Intent) {
