@@ -18,13 +18,13 @@ import kotlin.math.sin
 class AudioDistortionEngine {
     enum class DistortionMode(val label: String, val pitchFactor: Float) {
         NONE("Sin efecto", 1.0f),
-        ROBOT("Robot", 0.85f),
-        PITCH("Pitch", 1.15f),
-        VOCODER("Vocoder", 0.9f),
-        ALIEN("Alien", 1.25f),
-        FEMALE("Mujer", 1.15f),
-        MAN("Hombre", 0.85f),
-        SQUIRREL("Ardilla", 1.6f)
+        ROBOT("Robot", 0.7f),
+        PITCH("Pitch", 1.3f),
+        VOCODER("Vocoder", 0.85f),
+        ALIEN("Alien", 1.45f),
+        FEMALE("Mujer", 1.42f),
+        MAN("Hombre", 0.78f),
+        SQUIRREL("Ardilla", 2.35f)
     }
 
     companion object {
@@ -335,7 +335,28 @@ class AudioDistortionEngine {
 
         if (mode != DistortionMode.NONE) {
             stftPitchShift(samples, mode.pitchFactor)
-            formantCorrection(samples)
+            
+            // Apply mode-specific modulations for a unique sound
+            when (mode) {
+                DistortionMode.ROBOT -> {
+                    robotState.apply(samples)
+                }
+                DistortionMode.ALIEN -> {
+                    alienState.apply(samples)
+                }
+                DistortionMode.VOCODER -> {
+                    vocoderState.apply(samples)
+                }
+                DistortionMode.SQUIRREL -> {
+                    for (i in samples.indices) {
+                        // armónicos extra
+                        samples[i] = samples[i] + (kotlin.math.sin(samples[i] * 6.0) * 0.12)
+                    }
+                }
+                else -> {}
+            }
+            
+            formantCorrection(samples, mode)
         }
 
         // Convert back to ShortArray
@@ -348,7 +369,7 @@ class AudioDistortionEngine {
 
     private fun noiseSuppression(samples: DoubleArray) {
         // Simple noise gate as placeholder
-        val threshold = 0.01
+        val threshold = 0.025
         for (i in samples.indices) {
             if (abs(samples[i]) < threshold) {
                 samples[i] *= 0.1
@@ -358,7 +379,7 @@ class AudioDistortionEngine {
 
     private fun voiceActivityDetection(samples: DoubleArray): Boolean {
         val rms = kotlin.math.sqrt(samples.map { it * it }.average())
-        return rms > 0.005 // Lower threshold for sensitivity
+        return rms > 0.012 // Lower threshold for sensitivity
     }
 
     private fun stftPitchShift(samples: DoubleArray, pitchFactor: Float) {
@@ -379,9 +400,38 @@ class AudioDistortionEngine {
         // Log.d("AudioDistortion", "Pitch shift completado. Factor: $pitchFactor")
     }
 
-    private fun formantCorrection(samples: DoubleArray) {
-        // Placeholder: simple filter
-        bandPassState.apply(samples)
+    private fun formantCorrection(samples: DoubleArray, mode: DistortionMode) {
+        when (mode) {
+            DistortionMode.SQUIRREL -> {
+                // quitar graves y dar mucho brillo
+                highPassState.apply(samples)
+                for (i in samples.indices) {
+                    val s = samples[i]
+                    val bright = s * 1.45
+                    samples[i] = kotlin.math.tanh(bright * 1.25)
+                }
+            }
+            DistortionMode.FEMALE -> {
+                // Brillo y suavidad
+                for (i in samples.indices) {
+                    val s = samples[i]
+                    samples[i] = kotlin.math.tanh(s * 1.2) * 1.05
+                }
+                bandPassState.apply(samples)
+            }
+            DistortionMode.MAN -> {
+                // Cuerpo y profundidad (sub-armónicos)
+                for (i in samples.indices) {
+                    val s = samples[i]
+                    // Añadir peso en graves
+                    samples[i] = s + (kotlin.math.sin(s * 2.5) * 0.08)
+                }
+                bandPassState.apply(samples)
+            }
+            else -> {
+                bandPassState.apply(samples)
+            }
+        }
     }
 
     private fun calculateRms(samples: ShortArray, length: Int): Double {

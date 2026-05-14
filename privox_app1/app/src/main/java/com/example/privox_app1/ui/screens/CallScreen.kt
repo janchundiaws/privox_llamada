@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import android.content.Context
+import com.example.privox_app1.AudioDistortionEngine
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -34,6 +35,7 @@ fun CallScreen(
     isMuted: Boolean,
     isSpeakerOn: Boolean,
     isDistortionEnabled: Boolean,
+    distortionMode: AudioDistortionEngine.DistortionMode = AudioDistortionEngine.DistortionMode.NONE,
     onMuteToggle: () -> Unit,
     onSpeakerToggle: () -> Unit,
     onHangup: () -> Unit
@@ -96,7 +98,7 @@ fun CallScreen(
                 ) {
                     Icon(Icons.Filled.GraphicEq, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Distorsión Activa (Ardilla)", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("Distorsión Activa (${distortionMode.label})", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
             }
 

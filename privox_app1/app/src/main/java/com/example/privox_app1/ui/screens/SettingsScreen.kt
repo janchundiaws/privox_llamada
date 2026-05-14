@@ -15,6 +15,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
+import android.content.Context
+import com.example.privox_app1.data.remote.Constants
+import com.example.privox_app1.AudioDistortionEngine
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -22,8 +26,36 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onLogout: () -> Unit
 ) {
-    var isOnline by remember { mutableStateOf(true) }
-    var notificationsEnabled by remember { mutableStateOf(true) }
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("privox_prefs", Context.MODE_PRIVATE) }
+    
+    var notificationsEnabled by remember { 
+        mutableStateOf(prefs.getBoolean("notifications_enabled", true)) 
+    }
+    
+    var voiceStyle by remember {
+        mutableStateOf(prefs.getString("voice_style", "ROBOT") ?: "ROBOT")
+    }
+    
+    var expandedVoiceStyle by remember { mutableStateOf(false) }
+    val voiceStyles = AudioDistortionEngine.DistortionMode.values()
+    val currentMode = voiceStyles.find { it.name == voiceStyle } ?: AudioDistortionEngine.DistortionMode.ROBOT
+
+    fun getVoiceIcon(mode: AudioDistortionEngine.DistortionMode) = when (mode) {
+        AudioDistortionEngine.DistortionMode.NONE -> Icons.Default.VolumeUp
+        AudioDistortionEngine.DistortionMode.ROBOT -> Icons.Default.SmartToy
+        AudioDistortionEngine.DistortionMode.PITCH -> Icons.Default.GraphicEq
+        AudioDistortionEngine.DistortionMode.VOCODER -> Icons.Default.Waves
+        AudioDistortionEngine.DistortionMode.ALIEN -> Icons.Default.Public
+        AudioDistortionEngine.DistortionMode.FEMALE -> Icons.Default.Female
+        AudioDistortionEngine.DistortionMode.MAN -> Icons.Default.Male
+        AudioDistortionEngine.DistortionMode.SQUIRREL -> Icons.Default.Pets
+    }
+
+    // Update Constants immediately for background services
+    LaunchedEffect(notificationsEnabled) {
+        Constants.NOTIFICATIONS_ENABLED = notificationsEnabled
+    }
 
     Scaffold(
         topBar = {
@@ -58,16 +90,42 @@ fun SettingsScreen(
                             subtitle = "Recibir alertas de llamadas entrantes",
                             icon = { Icon(Icons.Default.Notifications, contentDescription = null) },
                             checked = notificationsEnabled,
-                            onCheckedChange = { notificationsEnabled = it }
+                            onCheckedChange = { 
+                                notificationsEnabled = it
+                                prefs.edit().putBoolean("notifications_enabled", it).apply()
+                            }
                         )
                         HorizontalDivider()
-                        ListItem(
-                            headlineContent = { Text("Eliminar cuenta") },
-                            supportingContent = { Text("Esta acción no se puede deshacer") },
-                            leadingContent = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color.Red) },
-                            trailingContent = { Icon(Icons.Default.KeyboardArrowRight, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                            modifier = Modifier.clickable { /* Mostrar diálogo eliminar */ }
-                        )
+                        ExposedDropdownMenuBox(
+                            expanded = expandedVoiceStyle,
+                            onExpandedChange = { expandedVoiceStyle = !expandedVoiceStyle },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            ListItem(
+                                headlineContent = { Text("Estilo de Voz") },
+                                supportingContent = { Text("Efecto activo: ${currentMode.label}") },
+                                leadingContent = { Icon(getVoiceIcon(currentMode), contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                                trailingContent = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedVoiceStyle) },
+                                modifier = Modifier.menuAnchor().clickable { expandedVoiceStyle = true }
+                            )
+                            ExposedDropdownMenu(
+                                expanded = expandedVoiceStyle,
+                                onDismissRequest = { expandedVoiceStyle = false }
+                            ) {
+                                voiceStyles.forEach { mode ->
+                                    DropdownMenuItem(
+                                        text = { Text(mode.label) },
+                                        leadingIcon = { Icon(getVoiceIcon(mode), contentDescription = null) },
+                                        onClick = {
+                                            voiceStyle = mode.name
+                                            prefs.edit().putString("voice_style", voiceStyle).apply()
+                                            expandedVoiceStyle = false
+                                        },
+                                        contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }

@@ -105,7 +105,6 @@ class MainActivity : ComponentActivity() {
                             // Reset audio states at the start of any call flow
                             isMuted = false
                             isSpeakerOn = false
-                            isDistortionEnabled = false
                             
                             // Ensure system speaker is off
                             val audioManager = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
@@ -200,11 +199,16 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         "Call" -> {
-                            // Auto-enable distortion for squirrel mode as requested
                             LaunchedEffect(Unit) {
+                                val savedStyle = prefs.getString("voice_style", "ROBOT") ?: "ROBOT"
+                                try {
+                                    val mode = com.example.privox_app1.AudioDistortionEngine.DistortionMode.valueOf(savedStyle)
+                                    socketService.currentDistortionMode = mode
+                                } catch (e: Exception) {
+                                    Log.e("MainActivity", "Error parsing voice style: $e")
+                                }
                                 isDistortionEnabled = true
                                 socketService.isDistortionEnabled = true
-                                socketService.currentDistortionMode = com.example.privox_app1.AudioDistortionEngine.DistortionMode.SQUIRREL
                             }
                             
                             com.example.privox_app1.ui.screens.CallScreen(
@@ -213,6 +217,7 @@ class MainActivity : ComponentActivity() {
                                 isMuted = isMuted,
                                 isSpeakerOn = isSpeakerOn,
                                 isDistortionEnabled = isDistortionEnabled,
+                                distortionMode = socketService.currentDistortionMode,
                                 onMuteToggle = {
                                     isMuted = !isMuted
                                     socketService.localStream?.audioTracks?.forEach { it.setEnabled(!isMuted) }
