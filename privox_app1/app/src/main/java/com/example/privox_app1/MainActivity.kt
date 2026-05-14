@@ -35,6 +35,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.pulltorefresh.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -382,6 +385,16 @@ fun VoiceChangerTestScreen(engine: AudioDistortionEngine) {
             context,
             Manifest.permission.RECORD_AUDIO
         ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    // Asegurar que el motor se detenga al salir de esta pantalla
+    DisposableEffect(Unit) {
+        onDispose {
+            if (isRunning.value) {
+                engine.stop()
+                isRunning.value = false
+            }
+        }
     }
 
     Column(

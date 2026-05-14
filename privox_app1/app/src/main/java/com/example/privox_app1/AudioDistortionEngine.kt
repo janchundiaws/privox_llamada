@@ -11,8 +11,6 @@ import android.util.Log
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.PI
 import kotlin.math.abs
-import kotlin.math.log10
-import kotlin.math.pow
 import kotlin.math.sin
 
 class AudioDistortionEngine {
@@ -33,7 +31,6 @@ class AudioDistortionEngine {
         const val CHANNEL_OUT = AudioFormat.CHANNEL_OUT_MONO
         const val ENCODING = AudioFormat.ENCODING_PCM_16BIT
         const val FRAME_SIZE = 1024
-        const val PREVIEW_BUFFER = 2048
         init {
             System.loadLibrary("native-lib")
         }
@@ -41,46 +38,14 @@ class AudioDistortionEngine {
 
     private val running = AtomicBoolean(false)
     private var workerThread: Thread? = null
-    private var frameCounter = 0
     private val logTag = "VoiceChangerEngine"
 
-    private val audioRecord: AudioRecord by lazy {
-        AudioRecord.Builder()
-            .setAudioSource(MediaRecorder.AudioSource.MIC)
-            .setAudioFormat(
-                AudioFormat.Builder()
-                    .setEncoding(ENCODING)
-                    .setSampleRate(SAMPLE_RATE)
-                    .setChannelMask(CHANNEL_IN)
-                    .build()
-            )
-            .setBufferSizeInBytes(AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_IN, ENCODING).coerceAtLeast(FRAME_SIZE * 4))
-            .build()
-    }
-
-    private val audioTrack: AudioTrack by lazy {
-        AudioTrack.Builder()
-            .setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                    .build()
-            )
-            .setAudioFormat(
-                AudioFormat.Builder()
-                    .setEncoding(ENCODING)
-                    .setSampleRate(SAMPLE_RATE)
-                    .setChannelMask(CHANNEL_OUT)
-                    .build()
-            )
-            .setBufferSizeInBytes(AudioTrack.getMinBufferSize(SAMPLE_RATE, CHANNEL_OUT, ENCODING).coerceAtLeast(FRAME_SIZE * 4))
-            .setTransferMode(AudioTrack.MODE_STREAM)
-            .build()
-    }
-
+    private var audioRecord: AudioRecord? = null
+    private var audioTrack: AudioTrack? = null
+    private var audioManager: AudioManager? = null
+    
     private var previousAudioMode = AudioManager.MODE_NORMAL
     private var previousSpeakerphoneOn = false
-    private var audioManager: AudioManager? = null
 
     private val highPassState = HighPassState(80.0)
     private val bandPassState = BandPassState(300.0, 3000.0)
@@ -88,43 +53,208 @@ class AudioDistortionEngine {
     private val pitchState = PitchState()
     private val vocoderState = VocoderState()
     private val alienState = AlienState()
-
-    // Native method for STFT Phase Vocoder pitch shift
+    
     external fun processPitchShift(input: ShortArray, pitchFactor: Float): ShortArray
+
+    fun start(context: Context, mode: DistortionMode, onError: (String) -> Unit, onStatus: (String) -> Unit) {
+        if (running.get()) return
+        running.set(true)
+        Log.d(logTag, "🚀 Iniciando motor de prueba local...")
+
+        workerThread = Thread {
+            try {
+                val manager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                audioManager = manager
+                previousAudioMode = manager.mode
+                previousSpeakerphoneOn = manager.isSpeakerphoneOn
+                
+                manager.mode = AudioManager.MODE_NORMAL
+                manager.isSpeakerphoneOn = false
+
+                val bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_IN, ENCODING).coerceAtLeast(FRAME_SIZE * 4)
+                audioRecord = AudioRecord.Builder()
+                    .setAudioSource(MediaRecorder.AudioSource.MIC)
+                    .setAudioFormat(AudioFormat.Builder()
+                        .setEncoding(ENCODING)
+                        .setSampleRate(SAMPLE_RATE)
+                        .setChannelMask(CHANNEL_IN)
+                        .build())
+                    .setBufferSizeInBytes(bufferSize)
+                    .build()
+
+                val trackBufferSize = AudioTrack.getMinBufferSize(SAMPLE_RATE, CHANNEL_OUT, ENCODING).coerceAtLeast(FRAME_SIZE * 4)
+                audioTrack = AudioTrack.Builder()
+                    .setAudioAttributes(AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .build())
+                    .setAudioFormat(AudioFormat.Builder()
+                        .setEncoding(ENCODING)
+                        .setSampleRate(SAMPLE_RATE)
+                        .setChannelMask(CHANNEL_OUT)
+                        .build())
+                    .setBufferSizeInBytes(trackBufferSize)
+                    .setTransferMode(AudioTrack.MODE_STREAM)
+                    .build()
+
+                audioRecord?.startRecording()
+                audioTrack?.play()
+                
+                onStatus("Probando: ${mode.label}")
+                val inputBuffer = ShortArray(FRAME_SIZE)
+                val outputBuffer = ShortArray(FRAME_SIZE)
+
+                while (running.get()) {
+                    val read = audioRecord?.read(inputBuffer, 0, FRAME_SIZE) ?: -1
+                    if (read > 0) {
+                        processFrame(inputBuffer, outputBuffer, read, mode)
+                        audioTrack?.write(outputBuffer, 0, read)
+                    }
+                }
+            } catch (ex: Exception) {
+                Log.e(logTag, "Error en el motor local", ex)
+                onError(ex.message ?: "Error desconocido")
+            } finally {
+                stopInternal()
+                onStatus("Detenido")
+            }
+        }
+        workerThread?.start()
+    }
+
+    fun stop() {
+        Log.d(logTag, "⏹️ Deteniendo motor local...")
+        running.set(false)
+        workerThread?.join(1000)
+        stopInternal()
+    }
+
+    private fun stopInternal() {
+        try {
+            audioRecord?.apply {
+                if (recordingState == AudioRecord.RECORDSTATE_RECORDING) stop()
+                release()
+                Log.d(logTag, "AudioRecord liberado")
+            }
+            audioRecord = null
+
+            audioTrack?.apply {
+                if (playState == AudioTrack.PLAYSTATE_PLAYING) stop()
+                release()
+                Log.d(logTag, "AudioTrack liberado")
+            }
+            audioTrack = null
+
+            audioManager?.let { manager ->
+                manager.mode = previousAudioMode
+                manager.isSpeakerphoneOn = previousSpeakerphoneOn
+            }
+        } catch (e: Exception) {
+            Log.e(logTag, "Error en stopInternal", e)
+        }
+    }
+
+    fun processByteBuffer(buffer: java.nio.ByteBuffer, length: Int, mode: DistortionMode) {
+        val shortsCount = length / 2
+        val inputShorts = ShortArray(shortsCount)
+        val outputShorts = ShortArray(shortsCount)
+        val originalPosition = buffer.position()
+        buffer.order(java.nio.ByteOrder.nativeOrder())
+        buffer.asShortBuffer().get(inputShorts)
+        
+        processFrame(inputShorts, outputShorts, shortsCount, mode)
+        
+        buffer.position(originalPosition)
+        buffer.asShortBuffer().put(outputShorts)
+        buffer.position(originalPosition)
+    }
+
+    private fun processFrame(input: ShortArray, output: ShortArray, count: Int, mode: DistortionMode): ShortArray {
+        val samples = DoubleArray(count)
+        for (i in 0 until count) samples[i] = input[i].toDouble() / 32768.0
+
+        when (mode) {
+            DistortionMode.NONE -> { /* No hacer nada, se devuelve el input */ }
+            else -> {
+                // TODOS los estilos ahora usan el motor nativo de alta calidad como base
+                val shifted = processPitchShift(input, mode.pitchFactor)
+                for (i in 0 until count) samples[i] = shifted[i].toDouble() / 32768.0
+                
+                // Aplicar filtros específicos de carácter después del cambio de tono
+                when (mode) {
+                    DistortionMode.ROBOT -> robotState.apply(samples)
+                    DistortionMode.ALIEN -> alienState.apply(samples)
+                    DistortionMode.VOCODER -> vocoderState.apply(samples)
+                    else -> formantCorrection(samples, mode)
+                }
+            }
+        }
+
+        for (i in 0 until count) {
+            val s = (samples[i] * 32768.0).toInt().coerceIn(-32768, 32767)
+            output[i] = s.toShort()
+        }
+        return output
+    }
+
+    private fun formantCorrection(samples: DoubleArray, mode: DistortionMode) {
+        when (mode) {
+            DistortionMode.SQUIRREL -> {
+                highPassState.apply(samples)
+                for (i in samples.indices) {
+                    val dry = samples[i]
+                    // Suavizar las sibilancias de la ardilla
+                    val bright = dry * 1.05
+                    val compressed = kotlin.math.tanh(bright * 0.85)
+                    samples[i] = (dry * 0.6) + (compressed * 0.4)
+                }
+            }
+            DistortionMode.FEMALE -> {
+                highPassState.apply(samples)
+                for (i in samples.indices) {
+                    val x = samples[i]
+                    samples[i] = kotlin.math.tanh(x * 1.1)
+                }
+            }
+            DistortionMode.MAN -> {
+                for (i in samples.indices) {
+                    val x = samples[i]
+                    samples[i] = x * 0.9 + (kotlin.math.sin(x * 2.5) * 0.05)
+                }
+            }
+            else -> {}
+        }
+    }
 
     private class HighPassState(cutoffHz: Double) {
         private val alpha: Double
-        private var previous = 0.0
-
+        private var lastY = 0.0
+        private var lastX = 0.0
         init {
             val rc = 1.0 / (2.0 * PI * cutoffHz)
             val dt = 1.0 / 48000.0
             alpha = rc / (rc + dt)
         }
-
         fun apply(samples: DoubleArray) {
-            var lastY = 0.0
             for (i in samples.indices) {
                 val x = samples[i]
-                val y = alpha * (lastY + x - previous)
-                samples[i] = y
-                previous = x
+                val y = alpha * (lastY + x - lastX)
                 lastY = y
+                lastX = x
+                samples[i] = y
             }
         }
     }
 
     private class BandPassState(private val lowHz: Double, private val highHz: Double) {
         private val hp = HighPassState(lowHz)
-        private val lpAlpha: Double
         private var lastY = 0.0
-
+        private val lpAlpha: Double
         init {
             val rc = 1.0 / (2.0 * PI * highHz)
             val dt = 1.0 / 48000.0
             lpAlpha = dt / (rc + dt)
         }
-
         fun apply(samples: DoubleArray) {
             hp.apply(samples)
             for (i in samples.indices) {
@@ -137,14 +267,13 @@ class AudioDistortionEngine {
 
     private class RobotState {
         private var phase = 0.0
-        private val frequency = 60.0
+        private val frequency = 50.0 // Frecuencia más baja para un robot más profundo
         private val phaseIncrement = 2.0 * PI * frequency / 48000.0
-
         fun apply(samples: DoubleArray) {
             for (i in samples.indices) {
-                val rectified = abs(samples[i])
-                val carrier = 0.6 + 0.4 * sin(phase)
-                samples[i] = rectified * carrier
+                // Modulación de amplitud suave (Ring Modulation)
+                val carrier = 0.7 + 0.3 * sin(phase)
+                samples[i] *= carrier
                 phase += phaseIncrement
                 if (phase > 2.0 * PI) phase -= 2.0 * PI
             }
@@ -152,332 +281,50 @@ class AudioDistortionEngine {
     }
 
     private class PitchState {
+        private var phase = 0.0
+        private val frequency = 120.0
+        private val phaseIncrement = 2.0 * PI * frequency / 48000.0
         fun apply(samples: DoubleArray) {
-            // Placeholder pitch effect
             for (i in samples.indices) {
-                samples[i] *= 1.1
+                val modulation = 0.8 + 0.2 * sin(phase)
+                samples[i] *= modulation
+                phase += phaseIncrement
+                if (phase > 2.0 * PI) phase -= 2.0 * PI
             }
         }
     }
 
     private class VocoderState {
-        private var phase = 0.0
-        private val carrierFrequency = 120.0
-        private val phaseIncrement = 2.0 * PI * carrierFrequency / 48000.0
-        private var envelope = 0.0
-
+        private val bp = BandPassState(400.0, 3500.0) // Rango de voz clara
         fun apply(samples: DoubleArray) {
+            bp.apply(samples)
             for (i in samples.indices) {
-                envelope = 0.85 * envelope + 0.15 * abs(samples[i])
-                val carrier = sin(phase)
-                samples[i] = envelope * carrier * 1.3
-                phase += phaseIncrement
-                if (phase > 2.0 * PI) phase -= 2.0 * PI
+                // Bitcrushing ligero para efecto digital
+                val x = samples[i]
+                samples[i] = (kotlin.math.round(x * 16.0) / 16.0) * 0.9
             }
         }
     }
 
     private class AlienState {
-        private val delayBuffer = DoubleArray(2048)
+        private val delayBuffer = DoubleArray(1024) // Buffer más corto para evitar eco molesto
         private var writeIndex = 0
         private var phase = 0.0
-        private val frequency = 1.8
-        private val phaseIncrement = 2.0 * PI * frequency / 48000.0
-
+        private val phaseIncrement = 2.0 * PI * 1.5 / 48000.0
         fun apply(samples: DoubleArray) {
             for (i in samples.indices) {
-                val modulation = (sin(phase) + 1.0) * 0.5
-                val delaySamples = (modulation * 30 + 15).toInt()
+                val modulation = sin(phase)
+                val delaySamples = (modulation * 20 + 10).toInt()
                 val readIndex = (writeIndex - delaySamples + delayBuffer.size) % delayBuffer.size
                 val delayed = delayBuffer[readIndex]
                 delayBuffer[writeIndex] = samples[i]
                 writeIndex = (writeIndex + 1) % delayBuffer.size
-                val chorus = (samples[i] * 0.65 + delayed * 0.35)
-                samples[i] = chorus * (0.9 + modulation * 0.2)
+                
+                // Mezcla de coro espacial
+                samples[i] = (samples[i] * 0.7 + delayed * 0.3)
                 phase += phaseIncrement
                 if (phase > 2.0 * PI) phase -= 2.0 * PI
             }
         }
-    }
-
-    fun start(context: Context, mode: DistortionMode, onError: (String) -> Unit, onStatus: (String) -> Unit) {
-        if (running.get()) return
-        running.set(true)
-        Log.d(logTag, "start() called. mode=${mode.label}")
-        workerThread = Thread {
-            try {
-                val manager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-                audioManager = manager
-                previousAudioMode = manager.mode
-                previousSpeakerphoneOn = manager.isSpeakerphoneOn
-                manager.mode = AudioManager.MODE_NORMAL
-                manager.isSpeakerphoneOn = false
-                Log.d(logTag, "audioManager mode=${manager.mode}, speakerOn=${manager.isSpeakerphoneOn}, streamMusicVolume=${manager.getStreamVolume(AudioManager.STREAM_MUSIC)}")
-
-                val recordStateBefore = audioRecord.state
-                val trackStateBefore = audioTrack.state
-                Log.d(logTag, "AudioRecord state before start=$recordStateBefore, AudioTrack state before start=$trackStateBefore")
-
-                audioRecord.startRecording()
-                audioTrack.play()
-                audioTrack.setVolume(1.0f)
-                Log.d(logTag, "AudioRecord recordingState=${audioRecord.recordingState}, AudioTrack playState=${audioTrack.playState}")
-                onStatus("Grabando con efecto: ${mode.label}")
-                val inputBuffer = ShortArray(FRAME_SIZE)
-                val outputBuffer = ShortArray(FRAME_SIZE)
-
-                while (running.get()) {
-                    val read = audioRecord.read(inputBuffer, 0, FRAME_SIZE, AudioRecord.READ_BLOCKING)
-                    if (read <= 0) {
-                        Log.d(logTag, "read returned $read")
-                        continue
-                    }
-
-                    val inputRms = calculateRms(inputBuffer, read)
-                    val processedBuffer = processFrame(inputBuffer, outputBuffer, read, mode)
-                    val outputRms = calculateRms(processedBuffer, read)
-                    if (++frameCounter % 20 == 0) {
-                        Log.d(logTag, "frame=$frameCounter read=$read inputRms=$inputRms outputRms=$outputRms")
-                    }
-
-                    // Local playback for verification
-                    val written = audioTrack.write(processedBuffer, 0, read, AudioTrack.WRITE_BLOCKING)
-                    if (written != read) {
-                        Log.d(logTag, "audioTrack.write wrote=$written expected=$read")
-                    }
-                }
-            } catch (ex: Exception) {
-                Log.e(logTag, "Error in audio loop", ex)
-                onError(ex.message ?: "Error desconocido en el motor de audio")
-            } finally {
-                stopInternal()
-                onStatus("Detenido")
-            }
-        }
-        workerThread?.start()
-    }
-
-    fun stop() {
-        running.set(false)
-        workerThread?.join()
-    }
-
-    fun processByteBuffer(buffer: java.nio.ByteBuffer, length: Int, mode: DistortionMode) {
-        // 16-bit PCM: 2 bytes per sample
-        val shortsCount = length / 2
-        val inputShorts = ShortArray(shortsCount)
-        val outputShorts = ShortArray(shortsCount)
-        
-        // Save current position and limit
-        val originalPosition = buffer.position()
-        
-        // Read from ByteBuffer
-        buffer.order(java.nio.ByteOrder.nativeOrder())
-        buffer.asShortBuffer().get(inputShorts)
-        
-        val firstSampleBefore = inputShorts[0]
-        
-        // Process
-        processFrame(inputShorts, outputShorts, shortsCount, mode)
-        
-        val firstSampleAfter = outputShorts[0]
-        if (firstSampleBefore != firstSampleAfter) {
-            // Log once in a while
-            if (System.currentTimeMillis() % 1000 < 20) {
-                Log.d("AudioDistortion", "Buffer modified: $firstSampleBefore -> $firstSampleAfter")
-            }
-        }
-        
-        // Write back to ByteBuffer
-        buffer.position(originalPosition)
-        buffer.asShortBuffer().put(outputShorts)
-        buffer.position(originalPosition)
-    }
-
-    private fun stopInternal() {
-        if (audioRecord.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
-            audioRecord.stop()
-        }
-        if (audioTrack.playState == AudioTrack.PLAYSTATE_PLAYING) {
-            audioTrack.pause()
-            audioTrack.flush()
-        }
-        audioManager?.let { manager ->
-            manager.isSpeakerphoneOn = previousSpeakerphoneOn
-            manager.mode = previousAudioMode
-            Log.d(logTag, "audioManager restored mode=${manager.mode}, speakerOn=${manager.isSpeakerphoneOn}")
-        }
-    }
-
-    internal fun processFrame(
-        input: ShortArray,
-        output: ShortArray,
-        length: Int,
-        mode: DistortionMode,
-    ): ShortArray {
-        val samples = DoubleArray(length)
-        for (i in 0 until length) {
-            samples[i] = input[i] / 32768.0
-        }
-
-        // Pipeline: Noise suppression -> VAD -> STFT Pitch Shift -> Formant correction
-        noiseSuppression(samples)
-        val isVoice = voiceActivityDetection(samples)
-        if (!isVoice) {
-            // If no voice, pass through
-            for (i in 0 until length) {
-                output[i] = input[i]
-            }
-            return output
-        }
-        
-        Log.d("AudioDistortion", "Voz detectada, aplicando efecto STFT...")
-
-        if (mode != DistortionMode.NONE) {
-            stftPitchShift(samples, mode.pitchFactor)
-            
-            // Apply mode-specific modulations for a unique sound
-            when (mode) {
-                DistortionMode.ROBOT -> {
-                    robotState.apply(samples)
-                }
-                DistortionMode.ALIEN -> {
-                    alienState.apply(samples)
-                }
-                DistortionMode.VOCODER -> {
-                    vocoderState.apply(samples)
-                }
-                DistortionMode.SQUIRREL -> {
-                    for (i in samples.indices) {
-
-                        val dry =
-                            samples[i]
-
-
-                        val harmonic =
-                            kotlin.math.sin(
-                                dry * 3.0
-                            ) * 0.045
-
-
-                        val wet =
-                            dry + harmonic
-
-
-                        // mezcla suave
-                        samples[i] =
-                            (dry * 0.70) +
-                            (wet * 0.30)
-                    }
-                }
-                else -> {}
-            }
-            
-            formantCorrection(samples, mode)
-        }
-
-        // Convert back to ShortArray
-        for (i in 0 until length) {
-            val clamped = samples[i].coerceIn(-1.0, 1.0)
-            output[i] = (clamped * 32767.0).toInt().toShort()
-        }
-        return output
-    }
-
-    private fun noiseSuppression(samples: DoubleArray) {
-        // Simple noise gate as placeholder
-        val threshold = 0.025
-        for (i in samples.indices) {
-            if (abs(samples[i]) < threshold) {
-                samples[i] *= 0.1
-            }
-        }
-    }
-
-    private fun voiceActivityDetection(samples: DoubleArray): Boolean {
-        val rms = kotlin.math.sqrt(samples.map { it * it }.average())
-        return rms > 0.012 // Lower threshold for sensitivity
-    }
-
-    private fun stftPitchShift(samples: DoubleArray, pitchFactor: Float) {
-        if (kotlin.math.abs(pitchFactor - 1.0f) < 0.01f) return
-        val shortSamples = ShortArray(samples.size)
-        for (i in samples.indices) {
-            shortSamples[i] = (samples[i] * 32767.0).toInt().toShort()
-        }
-        val shifted = processPitchShift(shortSamples, pitchFactor)
-        if (shifted.size != samples.size) {
-            Log.e("AudioDistortion", "Error: shifted size ${shifted.size} != samples size ${samples.size}")
-            return
-        }
-        for (i in samples.indices) {
-            samples[i] = shifted[i] / 32768.0
-        }
-        // Log to verify
-        // Log.d("AudioDistortion", "Pitch shift completado. Factor: $pitchFactor")
-    }
-
-    private fun formantCorrection(samples: DoubleArray, mode: DistortionMode) {
-        when (mode) {
-            DistortionMode.SQUIRREL -> {
-                // quitar graves sin adelgazar demasiado
-                highPassState.apply(samples)
-
-
-                for (i in samples.indices) {
-
-                    val dry =
-                        samples[i]
-
-
-                    // brillo suave
-                    val bright =
-                        dry * 1.12
-
-
-                    // compresión natural
-                    val compressed =
-                        kotlin.math.tanh(
-                            bright * 0.95
-                        )
-
-
-                    // dry/wet
-                    samples[i] =
-                        (dry * 0.55) +
-                        (compressed * 0.45)
-                }
-            }
-            DistortionMode.FEMALE -> {
-                // Brillo y suavidad
-                for (i in samples.indices) {
-                    val s = samples[i]
-                    samples[i] = kotlin.math.tanh(s * 1.2) * 1.05
-                }
-                bandPassState.apply(samples)
-            }
-            DistortionMode.MAN -> {
-                // Cuerpo y profundidad (sub-armónicos)
-                for (i in samples.indices) {
-                    val s = samples[i]
-                    // Añadir peso en graves
-                    samples[i] = s + (kotlin.math.sin(s * 2.5) * 0.08)
-                }
-                bandPassState.apply(samples)
-            }
-            else -> {
-                bandPassState.apply(samples)
-            }
-        }
-    }
-
-    private fun calculateRms(samples: ShortArray, length: Int): Double {
-        if (length <= 0) return 0.0
-        var sum = 0.0
-        for (i in 0 until length) {
-            val normalized = samples[i] / 32768.0
-            sum += normalized * normalized
-        }
-        return kotlin.math.sqrt(sum / length)
     }
 }

@@ -69,7 +69,17 @@ class SocketService private constructor(private val context: Context) {
     private val coroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     init {
-        initWebRtcFactory()
+        // 1. Inicialización global única de WebRTC
+        try {
+            PeerConnectionFactory.initialize(
+                PeerConnectionFactory.InitializationOptions.builder(context)
+                    .setEnableInternalTracer(true)
+                    .createInitializationOptions()
+            )
+            Log.d(TAG, "WebRTC Factory inicializada globalmente")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error en inicialización global de WebRTC: ${e.message}")
+        }
         createNotificationChannel()
     }
 
@@ -84,13 +94,10 @@ class SocketService private constructor(private val context: Context) {
         }
     private val distortionEngine = com.example.privox_app1.AudioDistortionEngine()
 
-    private fun initWebRtcFactory() {
-        PeerConnectionFactory.initialize(
-            PeerConnectionFactory.InitializationOptions.builder(context)
-                .setEnableInternalTracer(true)
-                .createInitializationOptions()
-        )
+    private fun ensureFactoryInitialized() {
+        if (peerConnectionFactory != null) return
         
+        Log.d(TAG, "🏗️ Creando nueva Factory y ADM...")
         val options = PeerConnectionFactory.Options()
         
         var recordLogCount = 0
@@ -125,6 +132,7 @@ class SocketService private constructor(private val context: Context) {
             .setOptions(options)
             .setAudioDeviceModule(adm)
             .createPeerConnectionFactory()
+        Log.d(TAG, "✅ Factory y ADM creados")
     }
 
     fun setSpeakerphoneOn(on: Boolean) {
@@ -381,6 +389,19 @@ class SocketService private constructor(private val context: Context) {
             Log.d(TAG, "WebRTC already initialized, skipping...")
             return
         }
+        
+        // 2. Asegurar que la Factory existe para esta llamada
+        ensureFactoryInitialized()
+        
+        // 3. Configurar el modo de audio para comunicación
+        try {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+            audioManager.mode = android.media.AudioManager.MODE_IN_COMMUNICATION
+            Log.d(TAG, "AudioManager configurado para comunicación")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error configurando AudioManager: ${e.message}")
+        }
+        
         try {
             val iceServers = getIceServers()
             
@@ -530,70 +551,78 @@ class SocketService private constructor(private val context: Context) {
     }
 
     fun disposeWebRTC(userId: String?) {
-        Log.d(TAG, "--- INICIO DISPOSE WEBRTC para $userId ---")
-        try {
-            // 1. Desactivar y liberar track de audio
-            localAudioTrack?.let {
-                Log.d(TAG, "Paso 1: Liberando AudioTrack...")
-                it.setEnabled(false)
-                it.dispose()
-                Log.d(TAG, "Paso 1: OK")
-            }
-            localAudioTrack = null
-            
-            // 2. Liberar fuente de audio
-            localAudioSource?.let {
-                Log.d(TAG, "Paso 2: Liberando AudioSource...")
-                it.dispose()
-                Log.d(TAG, "Paso 2: OK")
-            }
-            localAudioSource = null
-            
-            // 3. Desactivar track en el stream
-            localStream?.let { stream ->
-                Log.d(TAG, "Paso 3: Limpiando tracks del stream...")
-                stream.audioTracks?.forEach { 
-                    try { 
-                        it.setEnabled(false)
-                        it.dispose() 
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error liberando track del stream: ${e.message}")
-                    }
-                }
-                stream.dispose()
-                Log.d(TAG, "Paso 3: OK")
-            }
-            localStream = null
-            
-            // 4. Cerrar y liberar PeerConnection
-            peerConnection?.let {
-                Log.d(TAG, "Paso 4: Cerrando PeerConnection...")
-                it.close()
-                it.dispose()
-                Log.d(TAG, "Paso 4: OK")
-            }
-            peerConnection = null
-            
-            currentTargetUserId = null
-            currentTargetUsername = null
-            pendingCandidates.clear()
-            
-            // 5. Resetear audio manager para liberar micrófono
+        coroutineScope.launch {
+            val threadName = Thread.currentThread().name
+            Log.d(TAG, "[$threadName] --- INICIO DEEP DISPOSE para $userId ---")
             try {
-                Log.d(TAG, "Paso 5: Reseteando AudioManager...")
-                val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
-                audioManager.mode = android.media.AudioManager.MODE_NORMAL
-                audioManager.isSpeakerphoneOn = false
-                Log.d(TAG, "✅ Paso 5: AudioManager reseteado a NORMAL")
-            } catch (e: Exception) {
-                Log.e(TAG, "Error reseteando AudioManager: ${e.message}")
-            }
+                // 1. Detener motor de distorsión por si acaso
+                try { distortionEngine.stop() } catch (e: Exception) { Log.e(TAG, "Error stop engine: ${e.message}") }
+                
+                // 2. Liberar tracks y streams
+                try {
+                    localAudioTrack?.let {
+                        Log.d(TAG, "[$threadName] Liberando AudioTrack...")
+                        it.setEnabled(false)
+                        it.dispose()
+                    }
+                } catch (e: Exception) { Log.e(TAG, "Error dispose track: ${e.message}") }
+                localAudioTrack = null
+                
+                try {
+                    localAudioSource?.let {
+                        Log.d(TAG, "[$threadName] Liberando AudioSource...")
+                        it.dispose()
+                    }
+                } catch (e: Exception) { Log.e(TAG, "Error dispose source: ${e.message}") }
+                localAudioSource = null
+                
+                try {
+                    localStream?.let {
+                        Log.d(TAG, "[$threadName] Liberando Stream...")
+                        it.dispose()
+                    }
+                } catch (e: Exception) { Log.e(TAG, "Error dispose stream: ${e.message}") }
+                localStream = null
+                
+                // 3. Cerrar conexión
+                try {
+                    peerConnection?.let {
+                        Log.d(TAG, "[$threadName] Cerrando PeerConnection...")
+                        it.close()
+                        it.dispose()
+                    }
+                } catch (e: Exception) { Log.e(TAG, "Error dispose PC: ${e.message}") }
+                peerConnection = null
+                
+                // 4. DESTUIR FACTORY (Esto garantiza que el ADM/Micrófono se liberen)
+                try {
+                    peerConnectionFactory?.let {
+                        Log.d(TAG, "[$threadName] Destruyendo PeerConnectionFactory...")
+                        it.dispose()
+                    }
+                } catch (e: Exception) { Log.e(TAG, "Error dispose factory: ${e.message}") }
+                peerConnectionFactory = null
+                
+                currentTargetUserId = null
+                currentTargetUsername = null
+                pendingCandidates.clear()
+                
+                // 5. Resetear AudioManager
+                try {
+                    val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+                    audioManager.mode = android.media.AudioManager.MODE_NORMAL
+                    audioManager.isSpeakerphoneOn = false
+                    Log.d(TAG, "✅ [$threadName] AudioManager reseteado a NORMAL")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error reseteando AudioManager: ${e.message}")
+                }
 
-            Log.d(TAG, "✅ WebRTC y recursos de audio liberados por completo")
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ Error crítico al cerrar WebRTC: ${e.message}")
+                Log.d(TAG, "✅ [$threadName] Liberación total completada")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ [$threadName] Error general en deep dispose: ${e.message}")
+            }
+            Log.d(TAG, "--- FIN DEEP DISPOSE ---")
         }
-        Log.d(TAG, "--- FIN DISPOSE WEBRTC ---")
     }
 
     private fun createNotificationChannel() {
