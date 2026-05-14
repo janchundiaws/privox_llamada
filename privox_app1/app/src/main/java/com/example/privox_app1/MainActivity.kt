@@ -42,6 +42,7 @@ import androidx.core.content.ContextCompat
 import com.example.privox_app1.ui.theme.Privox_app1Theme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.example.privox_app1.data.remote.SocketService
 
 class MainActivity : ComponentActivity() {
     private val engine = AudioDistortionEngine()
@@ -289,6 +290,22 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        val socketService = SocketService.getInstance(this)
+        if (!socketService.isConnected.value) {
+            socketService.connect()
+        }
+    }
+
+    override fun onRestart() {
+        super.onRestart()
+        val socketService = SocketService.getInstance(this)
+        if (!socketService.isConnected.value) {
+            socketService.connect()
         }
     }
 
