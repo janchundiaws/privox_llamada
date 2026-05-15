@@ -22,7 +22,7 @@ class AudioDistortionEngine {
         ALIEN("Alien", 1.45f),
         FEMALE("Mujer", 1.42f),
         MAN("Hombre", 0.78f),
-        SQUIRREL("Ardilla", 1.95f)
+        SQUIRREL("Ardilla", 1.85f)
     }
 
     companion object {
@@ -200,13 +200,17 @@ class AudioDistortionEngine {
     private fun formantCorrection(samples: DoubleArray, mode: DistortionMode) {
         when (mode) {
             DistortionMode.SQUIRREL -> {
-                highPassState.apply(samples)
+                // Filtro BandPass más equilibrado para calidez
+                val squirrelFilter = BandPassState(380.0, 4800.0)
+                val dry = samples.copyOf()
+                squirrelFilter.apply(samples)
+                
                 for (i in samples.indices) {
-                    val dry = samples[i]
-                    // Suavizar las sibilancias de la ardilla
-                    val bright = dry * 1.05
-                    val compressed = kotlin.math.tanh(bright * 0.85)
-                    samples[i] = (dry * 0.6) + (compressed * 0.4)
+                    val wet = samples[i]
+                    // Compresión mucho más suave para evitar el sonido "rudo"
+                    val compressed = kotlin.math.tanh(wet * 0.85)
+                    // Mezcla Dry/Wet (50/50) para naturalidad
+                    samples[i] = (dry[i] * 0.5 + compressed * 0.5) * 0.95
                 }
             }
             DistortionMode.FEMALE -> {
