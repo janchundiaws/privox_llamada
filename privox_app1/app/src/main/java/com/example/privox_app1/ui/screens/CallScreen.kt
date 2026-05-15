@@ -27,6 +27,7 @@ import android.hardware.SensorManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.zIndex
 import android.os.PowerManager
+import com.example.privox_app1.data.remote.SocketService
 
 @Composable
 fun CallScreen(
@@ -47,6 +48,7 @@ fun CallScreen(
     }
 
     val context = LocalContext.current
+    val socketService = remember { SocketService.getInstance(context) }
 
     DisposableEffect(isSpeakerOn) {
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -131,9 +133,13 @@ fun CallScreen(
                 fontWeight = FontWeight.Bold
             )
             
+            val iceState by socketService.iceConnectionState.collectAsState()
+            val isCallActive = iceState == org.webrtc.PeerConnection.IceConnectionState.CONNECTED || 
+                               iceState == org.webrtc.PeerConnection.IceConnectionState.COMPLETED
+
             Text(
-                text = "En llamada - $formattedDuration",
-                color = Color.Gray,
+                text = if (isCallActive) "En llamada - $formattedDuration" else "Conectando...",
+                color = if (isCallActive) Color.Gray else Color(0xFFFF9800), // Naranja si está conectando
                 fontSize = 18.sp
             )
         }

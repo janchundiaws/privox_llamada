@@ -59,6 +59,11 @@ class SocketService private constructor(private val context: Context) {
     private val _events = MutableSharedFlow<Map<String, Any?>>()
     val events = _events.asSharedFlow()
 
+    private val _iceConnectionState = MutableStateFlow(PeerConnection.IceConnectionState.NEW)
+    val iceConnectionState = _iceConnectionState.asStateFlow()
+    
+    private var reconnectionJob: Job? = null
+
     private val pendingCandidates = mutableListOf<IceCandidate>()
     private val usersCache = mutableMapOf<String, String>()
     
@@ -415,6 +420,10 @@ class SocketService private constructor(private val context: Context) {
                 }
                 override fun onIceConnectionChange(state: PeerConnection.IceConnectionState?) {
                     Log.d(TAG, "IceConnectionState: $state")
+                    state?.let { 
+                        _iceConnectionState.value = it 
+                        handleReconnectionTimeout(it)
+                    }
                 }
                 override fun onIceConnectionReceivingChange(receiving: Boolean) {}
                 override fun onIceGatheringChange(state: PeerConnection.IceGatheringState?) {}
@@ -550,6 +559,40 @@ class SocketService private constructor(private val context: Context) {
         }
     }
 
+    private fun handleReconnectionTimeout(state: PeerConnection.IceConnectionState) {
+        when (state) {
+            PeerConnection.IceConnectionState.DISCONNECTED,
+            PeerConnection.IceConnectionState.FAILED -> {
+                if (reconnectionJob == null) {
+                    Log.w(TAG, "⚠️ Conexión inestable. Iniciando temporizador de 15s para colgar...")
+                    reconnectionJob = coroutineScope.launch {
+                        delay(15000)
+                        Log.e(TAG, "❌ Tiempo de reconexión agotado (15s). Colgando llamada...")
+                        
+                        // Notificar a la UI para que salga de la pantalla de llamada
+                        val payload = mapOf(
+                            "type" to "hangup",
+                            "from" to (currentTargetUserId ?: "unknown")
+                        )
+                        _events.emit(payload)
+                        
+                        // Limpiar recursos
+                        disposeWebRTC(currentTargetUserId)
+                    }
+                }
+            }
+            PeerConnection.IceConnectionState.CONNECTED,
+            PeerConnection.IceConnectionState.COMPLETED -> {
+                if (reconnectionJob != null) {
+                    Log.i(TAG, "✅ Conexión recuperada. Cancelando temporizador de colgado.")
+                    reconnectionJob?.cancel()
+                    reconnectionJob = null
+                }
+            }
+            else -> {}
+        }
+    }
+
     fun disposeWebRTC(userId: String?) {
         coroutineScope.launch {
             val threadName = Thread.currentThread().name
@@ -617,6 +660,10 @@ class SocketService private constructor(private val context: Context) {
                     Log.e(TAG, "Error reseteando AudioManager: ${e.message}")
                 }
 
+                reconnectionJob?.cancel()
+                reconnectionJob = null
+                
+                _iceConnectionState.value = PeerConnection.IceConnectionState.NEW
                 Log.d(TAG, "✅ [$threadName] Liberación total completada")
             } catch (e: Exception) {
                 Log.e(TAG, "❌ [$threadName] Error general en deep dispose: ${e.message}")
