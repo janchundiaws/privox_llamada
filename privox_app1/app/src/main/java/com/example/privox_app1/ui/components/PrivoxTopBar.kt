@@ -26,13 +26,13 @@ fun PrivoxTopBar(
                     tint = Color.Gray
                 )
             }
-            IconButton(onClick = onLogoutClick) {
+            /*IconButton(onClick = onLogoutClick) {
                 Icon(
                     Icons.Default.ExitToApp, 
                     contentDescription = "Cerrar sesión", 
                     tint = Color.Red
                 )
-            }
+            }*/
         },
         colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
     )

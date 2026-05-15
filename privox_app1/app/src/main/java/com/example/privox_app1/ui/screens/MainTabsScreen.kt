@@ -20,9 +20,6 @@ import kotlinx.coroutines.launch
 import com.example.privox_app1.AudioDistortionEngine
 import com.example.privox_app1.VoiceChangerTestScreen
 
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.outlined.Mic
-
 @Composable
 fun MainTabsScreen(
     username: String,
@@ -33,7 +30,7 @@ fun MainTabsScreen(
     onLogoutClick: () -> Unit,
     isConnected: Boolean
 ) {
-    val pagerState = rememberPagerState(pageCount = { 4 })
+    val pagerState = rememberPagerState(pageCount = { 3 })
     val scope = rememberCoroutineScope()
 
     Scaffold(
@@ -125,7 +122,7 @@ fun MainTabsScreen(
                         scope.launch { pagerState.animateScrollToPage(2) }
                     }
                 )
-                NavigationBarItem(
+/*                NavigationBarItem(
                     icon = { 
                         Icon(
                             if (pagerState.currentPage == 3) Icons.Filled.Mic else Icons.Outlined.Mic, 
@@ -147,7 +144,7 @@ fun MainTabsScreen(
                     onClick = {
                         scope.launch { pagerState.animateScrollToPage(3) }
                     }
-                    )
+                    )*/
                 }
             }
         }
@@ -155,7 +152,7 @@ fun MainTabsScreen(
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.padding(paddingValues),
-            beyondViewportPageCount = 3
+            beyondViewportPageCount = 2
         ) { page ->
             when (page) {
                 0 -> WelcomeScreen(
@@ -178,7 +175,7 @@ fun MainTabsScreen(
                     onSettingsClick = onSettingsClick,
                     onLogoutClick = onLogoutClick
                 )
-                3 -> VoiceChangerTestScreen(engine = engine)
+                /*3 -> VoiceChangerTestScreen(engine = engine)*/
             }
         }
     }
