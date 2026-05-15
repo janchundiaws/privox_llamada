@@ -686,7 +686,6 @@ class SocketService private constructor(private val context: Context) {
     }
 
     private fun showIncomingCallNotification(username: String, callerId: String, callId: String) {
-        if (!Constants.NOTIFICATIONS_ENABLED) return
 
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
