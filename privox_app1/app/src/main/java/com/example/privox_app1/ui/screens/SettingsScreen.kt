@@ -117,10 +117,19 @@ fun SettingsScreen(
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
+                    val packageInfo = remember {
+                        try {
+                            context.packageManager.getPackageInfo(context.packageName, 0)
+                        } catch (e: Exception) {
+                            null
+                        }
+                    }
+                    val versionName = packageInfo?.versionName ?: "1.0.0"
+
                     Column {
                         ListItem(
                             headlineContent = { Text("Versión de la app") },
-                            supportingContent = { Text("1.0.0") },
+                            supportingContent = { Text(versionName) },
                             leadingContent = { Icon(Icons.Default.Info, contentDescription = null) }
                         )
                         HorizontalDivider()
