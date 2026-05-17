@@ -16,7 +16,7 @@ import kotlin.math.sin
 class AudioDistortionEngine {
     enum class DistortionMode(val label: String, val pitchFactor: Float) {
         NONE("Sin efecto", 1.0f),
-        ROBOT("Robot", 0.7f),
+        ROBOT("Robot", 0.90f),
         PITCH("Pitch", 1.3f),
         VOCODER("Vocoder", 0.85f),
         ALIEN("Alien", 1.45f),
@@ -271,12 +271,15 @@ class AudioDistortionEngine {
 
     private class RobotState {
         private var phase = 0.0
-        private val frequency = 50.0 // Frecuencia más baja para un robot más profundo
+        // 120Hz: crea el buzz metálico clásico de robot (tipo HAL-9000).
+        // 50Hz era demasiado lento — solo generaba un tremolo audible, no robot.
+        private val frequency = 120.0
         private val phaseIncrement = 2.0 * PI * frequency / 48000.0
         fun apply(samples: DoubleArray) {
             for (i in samples.indices) {
-                // Modulación de amplitud suave (Ring Modulation)
-                val carrier = 0.7 + 0.3 * sin(phase)
+                // AM con profundidad 0.65+0.35: suficiente carácter mecánico
+                // sin destruir la inteligibilidad de las palabras.
+                val carrier = 0.65 + 0.35 * sin(phase)
                 samples[i] *= carrier
                 phase += phaseIncrement
                 if (phase > 2.0 * PI) phase -= 2.0 * PI
