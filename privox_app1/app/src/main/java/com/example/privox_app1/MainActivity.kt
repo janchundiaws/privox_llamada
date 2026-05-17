@@ -170,8 +170,10 @@ class MainActivity : ComponentActivity() {
                                 when (type) {
                                     "incoming-call" -> {
                                         Log.d("MainActivity", "🔔 Evento socket: Llamada entrante de $currentCallFromId")
-                                        // Safety: only accept incoming calls if we are not busy
-                                        if (currentScreen == "Home") {
+                                        // Rechazar solo si ya estamos en una llamada activa.
+                                        // Settings, Home y cualquier otra pantalla SÍ pueden recibir llamadas.
+                                        val busyScreens = setOf("CallingIncoming", "CallingOutgoing", "Call")
+                                        if (currentScreen !in busyScreens) {
                                             val fromId = event["from"] as? String ?: ""
                                             val callId = event["callId"] as? String ?: ""
                                             val fromUsername = event["fromUsername"] as? String ?: socketService.getUsernameById(fromId)
@@ -181,7 +183,7 @@ class MainActivity : ComponentActivity() {
                                             currentContact = fromUsername
                                             currentScreen = "CallingIncoming"
                                         } else {
-                                            Log.d("MainActivity", "⚠️ Ignorando llamada entrante porque el usuario está ocupado en $currentScreen")
+                                            Log.d("MainActivity", "⚠️ Ignorando llamada entrante: usuario ocupado en $currentScreen")
                                         }
                                     }
                                     "call-accepted" -> {
