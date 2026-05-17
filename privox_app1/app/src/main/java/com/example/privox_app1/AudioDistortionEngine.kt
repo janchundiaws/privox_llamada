@@ -20,7 +20,7 @@ class AudioDistortionEngine {
         PITCH("Pitch", 1.3f),
         VOCODER("Vocoder", 0.85f),
         ALIEN("Alien", 1.45f),
-        FEMALE("Mujer", 1.42f),
+        FEMALE("Mujer", 1.18f),
         MAN("Hombre", 0.78f),
         SQUIRREL("Ardilla", 1.70f)
     }
@@ -213,9 +213,11 @@ class AudioDistortionEngine {
             }
             DistortionMode.FEMALE -> {
                 highPassState.apply(samples)
+
+                var prev = if (samples.isNotEmpty()) samples[0] else 0.0
                 for (i in samples.indices) {
-                    val x = samples[i]
-                    samples[i] = kotlin.math.tanh(x * 1.1)
+                    prev += 0.08 * (samples[i] - prev)
+                    samples[i] = prev * 0.88
                 }
             }
             DistortionMode.MAN -> {
