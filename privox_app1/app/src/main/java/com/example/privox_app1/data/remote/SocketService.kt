@@ -686,17 +686,23 @@ class SocketService private constructor(private val context: Context) {
     }
 
     private fun showIncomingCallNotification(username: String, callerId: String, callId: String) {
-
+        // FLAG_ACTIVITY_SINGLE_TOP: si la app ya está abierta, Android llama
+        // onNewIntent() en la instancia existente en lugar de crear una nueva.
+        // FLAG_ACTIVITY_NEW_TASK: necesario para lanzar desde fuera de una Activity.
+        // NO usar FLAG_ACTIVITY_CLEAR_TASK: destruiría el estado de Compose y el
+        // socket, lo que impediría la navegación a CallingIncoming.
         val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra("callId", callId)
             putExtra("fromId", callerId)
             putExtra("fromName", username)
             putExtra("screen", "CallingIncoming")
         }
-        
+
         val pendingIntent = PendingIntent.getActivity(
-            context, 0, intent,
+            context,
+            callId.hashCode(), // requestCode único por callId para evitar colisiones
+            intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
@@ -707,9 +713,10 @@ class SocketService private constructor(private val context: Context) {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setFullScreenIntent(pendingIntent, true)
+            .setContentIntent(pendingIntent)   // también al tocar el cuerpo de la notif
             .setAutoCancel(true)
 
-        notificationManager.notify(0, builder.build())
+        notificationManager.notify(callId.hashCode(), builder.build())
     }
 
     private fun calculateRMS(data: ByteArray): Double {
