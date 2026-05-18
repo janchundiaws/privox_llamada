@@ -1,4 +1,4 @@
-package com.example.privox_app1.ui.screens
+package com.futura.privox_app.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -23,8 +23,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
-import com.example.privox_app1.data.remote.AuthService
-import com.example.privox_app1.ui.components.PrivoxTopBar
+import com.futura.privox_app.data.remote.AuthService
+import com.futura.privox_app.ui.components.PrivoxTopBar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -202,7 +202,7 @@ fun WelcomeScreen(
     }
 
     if (showLogoutDialog) {
-        com.example.privox_app1.ui.components.LogoutDialog(
+        com.futura.privox_app.ui.components.LogoutDialog(
             onDismiss = { showLogoutDialog = false },
             onConfirm = {
                 showLogoutDialog = false

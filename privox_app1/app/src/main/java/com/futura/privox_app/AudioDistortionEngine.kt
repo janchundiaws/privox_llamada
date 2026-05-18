@@ -1,4 +1,4 @@
-package com.example.privox_app1
+package com.futura.privox_app
 
 import android.content.Context
 import android.media.AudioAttributes
@@ -14,15 +14,18 @@ import kotlin.math.abs
 import kotlin.math.sin
 
 class AudioDistortionEngine {
-    enum class DistortionMode(val label: String, val pitchFactor: Float) {
-        NONE("Sin efecto", 1.0f),
-        ROBOT("Robot", 0.90f),
-        PITCH("Pitch", 1.3f),
-        VOCODER("Vocoder", 0.85f),
-        ALIEN("Alien", 1.45f),
-        FEMALE("Mujer", 1.18f),
-        MAN("Hombre", 0.78f),
-        SQUIRREL("Ardilla", 1.70f)
+    // wetMix: porcentaje del efecto procesado en la mezcla final.
+    // El resto (1 - wetMix) es el audio pitch-shifted limpio, que ancla la
+    // inteligibilidad de la voz sin eliminar el caracter del efecto.
+    enum class DistortionMode(val label: String, val pitchFactor: Float, val wetMix: Double) {
+        NONE("Sin efecto",  1.00f, 1.00),
+        ROBOT("Robot",      0.80f, 0.72), // AM modulation: 28% de voz limpia mejora claridad
+        PITCH("Pitch",      1.30f, 0.92),
+        VOCODER("Vocoder",  0.85f, 0.68), // Bitcrush agresivo: 32% limpio restaura inteligibilidad
+        ALIEN("Alien",      1.45f, 0.78), // Chorus: 22% limpio evita que suene "borroso"
+        FEMALE("Mujer",     1.18f, 0.90),
+        MAN("Hombre",       0.78f, 0.90),
+        SQUIRREL("Ardilla", 1.70f, 0.88)
     }
 
     companion object {
@@ -31,6 +34,10 @@ class AudioDistortionEngine {
         const val CHANNEL_OUT = AudioFormat.CHANNEL_OUT_MONO
         const val ENCODING = AudioFormat.ENCODING_PCM_16BIT
         const val FRAME_SIZE = 1024
+        // Umbral del noise gate (~-40 dBFS).
+        // Frames con RMS por debajo de este valor se pasan sin distorsion:
+        // el ruido de habitacion no se distorsiona, solo la voz activa.
+        const val NOISE_GATE_THRESHOLD = 0.010
         init {
             System.loadLibrary("native-lib")
         }
@@ -50,9 +57,11 @@ class AudioDistortionEngine {
     private val highPassState = HighPassState(80.0)
     private val bandPassState = BandPassState(300.0, 3000.0)
     private val robotState = RobotState()
-    private val pitchState = PitchState()
     private val vocoderState = VocoderState()
     private val alienState = AlienState()
+    // Estado stateful del HighPass de Squirrel: debe persistir entre frames para que
+    // el filtro IIR no se reinicie en cada buffer (bug corregido).
+    private val squirrelHpState = HighPassState(120.0)
     
     external fun processPitchShift(input: ShortArray, pitchFactor: Float): ShortArray
 
@@ -174,18 +183,37 @@ class AudioDistortionEngine {
         for (i in 0 until count) samples[i] = input[i].toDouble() / 32768.0
 
         when (mode) {
-            DistortionMode.NONE -> { /* No hacer nada, se devuelve el input */ }
+            DistortionMode.NONE -> { /* bypass: sin efecto */ }
             else -> {
-                // TODOS los estilos ahora usan el motor nativo de alta calidad como base
+                // ── NOISE GATE ───────────────────────────────────────────────
+                // Si el RMS del frame es menor al umbral, se devuelve el audio
+                // original sin procesar: el ruido ambiente no se distorsiona.
+                if (calculateRms(samples, count) < NOISE_GATE_THRESHOLD) {
+                    for (i in 0 until count) output[i] = input[i]
+                    return output
+                }
+
                 val shifted = processPitchShift(input, mode.pitchFactor)
-                for (i in 0 until count) samples[i] = shifted[i].toDouble() / 32768.0
-                
-                // Aplicar filtros específicos de carácter después del cambio de tono
+                // pitchClean: audio con pitch-shift pero sin filtros de caracter.
+                // Es la referencia "limpia" para la mezcla de inteligibilidad.
+                val pitchClean = DoubleArray(count) { shifted[it].toDouble() / 32768.0 }
+                for (i in 0 until count) samples[i] = pitchClean[i]
+
+                // ── FILTROS DE CARACTER ──────────────────────────────────────
                 when (mode) {
-                    DistortionMode.ROBOT -> robotState.apply(samples)
-                    DistortionMode.ALIEN -> alienState.apply(samples)
+                    DistortionMode.ROBOT   -> robotState.apply(samples)
+                    DistortionMode.ALIEN   -> alienState.apply(samples)
                     DistortionMode.VOCODER -> vocoderState.apply(samples)
-                    else -> formantCorrection(samples, mode)
+                    else                   -> formantCorrection(samples, mode)
+                }
+
+                // ── MEZCLA DRY/WET ───────────────────────────────────────────
+                // Combina el efecto procesado (wet) con el pitch-shift limpio (dry).
+                // Preserva la inteligibilidad de la voz sin perder el estilo.
+                val wet = mode.wetMix
+                val dry = 1.0 - wet
+                for (i in 0 until count) {
+                    samples[i] = samples[i] * wet + pitchClean[i] * dry
                 }
             }
         }
@@ -197,27 +225,37 @@ class AudioDistortionEngine {
         return output
     }
 
+    // Calcula el RMS (Root Mean Square) del frame normalizado en [-1, 1].
+    // Usado por el noise gate para detectar actividad de voz.
+    private fun calculateRms(samples: DoubleArray, count: Int): Double {
+        var sum = 0.0
+        for (i in 0 until count) sum += samples[i] * samples[i]
+        return kotlin.math.sqrt(sum / count)
+    }
+
     private fun formantCorrection(samples: DoubleArray, mode: DistortionMode) {
         when (mode) {
             DistortionMode.SQUIRREL -> {
-                // Paso 1: HighPass ligero para eliminar frecuencias bajas que
-                // suenan graves/borrosas después del pitch-up.
-                val hpFilter = HighPassState(120.0)
-                hpFilter.apply(samples)
+                // HighPass stateful (instancia de clase) → mantiene estado IIR
+                // entre frames consecutivos, evitando la reinicialización por buffer.
+                squirrelHpState.apply(samples)
 
-                // Paso 2: Soft-clip muy suave solo para evitar clipping duro.
-                // Sin mezcla Dry/Wet: 100% señal procesada para máxima claridad.
+                // Soft-clip suave para evitar clipping duro sin distorsionar.
                 for (i in samples.indices) {
                     samples[i] = kotlin.math.tanh(samples[i] * 1.05) * 0.92
                 }
             }
             DistortionMode.FEMALE -> {
+                // HighPass a 80 Hz: elimina graves excesivos tras el pitch-up.
                 highPassState.apply(samples)
 
+                // LP suavizado con alpha=0.50 → corte ~3820 Hz.
+                // Anterior (alpha=0.08 → corte ~611 Hz) destruía las consonantes
+                // sibilantes (s, t, f, ch) haciendo la voz ininteligible.
                 var prev = if (samples.isNotEmpty()) samples[0] else 0.0
                 for (i in samples.indices) {
-                    prev += 0.08 * (samples[i] - prev)
-                    samples[i] = prev * 0.88
+                    prev += 0.50 * (samples[i] - prev)
+                    samples[i] = prev * 0.92
                 }
             }
             DistortionMode.MAN -> {
@@ -287,19 +325,7 @@ class AudioDistortionEngine {
         }
     }
 
-    private class PitchState {
-        private var phase = 0.0
-        private val frequency = 120.0
-        private val phaseIncrement = 2.0 * PI * frequency / 48000.0
-        fun apply(samples: DoubleArray) {
-            for (i in samples.indices) {
-                val modulation = 0.8 + 0.2 * sin(phase)
-                samples[i] *= modulation
-                phase += phaseIncrement
-                if (phase > 2.0 * PI) phase -= 2.0 * PI
-            }
-        }
-    }
+
 
     private class VocoderState {
         private val bp = BandPassState(400.0, 3500.0) // Rango de voz clara
@@ -314,21 +340,26 @@ class AudioDistortionEngine {
     }
 
     private class AlienState {
-        private val delayBuffer = DoubleArray(1024) // Buffer más corto para evitar eco molesto
+        // Buffer de 2048 muestras → soporta hasta ~42 ms a 48 kHz.
+        // Anterior (1024 con delay 10-30 samples = 0.2-0.6 ms) producía flanger,
+        // no chorus. Un chorus real requiere delays de 15-30 ms (720-1440 samples).
+        private val delayBuffer = DoubleArray(2048)
         private var writeIndex = 0
         private var phase = 0.0
-        private val phaseIncrement = 2.0 * PI * 1.5 / 48000.0
+        // LFO a 0.3 Hz: modulación lenta y suave, más espacial y menos mareante.
+        private val phaseIncrement = 2.0 * PI * 0.3 / 48000.0
         fun apply(samples: DoubleArray) {
             for (i in samples.indices) {
                 val modulation = sin(phase)
-                val delaySamples = (modulation * 20 + 10).toInt()
+                // Delay oscila entre 720 y 1440 muestras (15–30 ms): rango real de chorus.
+                val delaySamples = (modulation * 360 + 1080).toInt().coerceIn(1, delayBuffer.size - 1)
                 val readIndex = (writeIndex - delaySamples + delayBuffer.size) % delayBuffer.size
                 val delayed = delayBuffer[readIndex]
                 delayBuffer[writeIndex] = samples[i]
                 writeIndex = (writeIndex + 1) % delayBuffer.size
-                
-                // Mezcla de coro espacial
-                samples[i] = (samples[i] * 0.7 + delayed * 0.3)
+
+                // Mezcla chorus: 70% directo + 30% delayed
+                samples[i] = samples[i] * 0.7 + delayed * 0.3
                 phase += phaseIncrement
                 if (phase > 2.0 * PI) phase -= 2.0 * PI
             }

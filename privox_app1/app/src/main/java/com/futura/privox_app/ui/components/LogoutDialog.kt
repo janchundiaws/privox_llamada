@@ -1,4 +1,4 @@
-package com.example.privox_app1.ui.components
+package com.futura.privox_app.ui.components
 
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text

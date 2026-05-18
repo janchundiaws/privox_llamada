@@ -1,4 +1,4 @@
-package com.example.privox_app1.data.remote
+package com.futura.privox_app.data.remote
 
 import android.content.Context
 import android.content.SharedPreferences

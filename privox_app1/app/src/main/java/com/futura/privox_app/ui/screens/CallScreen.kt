@@ -1,4 +1,4 @@
-package com.example.privox_app1.ui.screens
+package com.futura.privox_app.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import android.content.Context
-import com.example.privox_app1.AudioDistortionEngine
+import com.futura.privox_app.AudioDistortionEngine
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -27,7 +27,7 @@ import android.hardware.SensorManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.zIndex
 import android.os.PowerManager
-import com.example.privox_app1.data.remote.SocketService
+import com.futura.privox_app.data.remote.SocketService
 
 @Composable
 fun CallScreen(

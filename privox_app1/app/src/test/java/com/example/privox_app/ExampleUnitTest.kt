@@ -1,4 +1,4 @@
-package com.example.privox_app1
+package com.futura.privox_app
 
 import org.junit.Test
 

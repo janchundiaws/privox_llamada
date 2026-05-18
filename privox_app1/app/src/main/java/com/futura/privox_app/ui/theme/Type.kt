@@ -1,4 +1,4 @@
-package com.example.privox_app1.ui.theme
+package com.futura.privox_app.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle

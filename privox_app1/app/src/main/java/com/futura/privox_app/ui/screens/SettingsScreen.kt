@@ -1,4 +1,4 @@
-package com.example.privox_app1.ui.screens
+package com.futura.privox_app.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,8 +17,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import android.content.Context
-import com.example.privox_app1.data.remote.Constants
-import com.example.privox_app1.AudioDistortionEngine
+import com.futura.privox_app.data.remote.Constants
+import com.futura.privox_app.AudioDistortionEngine
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

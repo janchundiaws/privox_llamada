@@ -1,4 +1,4 @@
-package com.example.privox_app1.ui.screens
+package com.futura.privox_app.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,8 +17,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
-import com.example.privox_app1.AudioDistortionEngine
-import com.example.privox_app1.VoiceChangerTestScreen
+import com.futura.privox_app.AudioDistortionEngine
+import com.futura.privox_app.VoiceChangerTestScreen
 
 @Composable
 fun MainTabsScreen(

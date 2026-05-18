@@ -5,13 +5,13 @@ plugins {
 }
 
 android {
-    namespace = "com.example.privox_app1"
+    namespace = "com.futura.privox_app"
     compileSdk {
         version = release(36)
     }
 
     defaultConfig {
-        applicationId = "com.example.privox_app1"
+        applicationId = "com.futura.privox_app"
         minSdk = 24
         targetSdk = 36
         versionCode = 1

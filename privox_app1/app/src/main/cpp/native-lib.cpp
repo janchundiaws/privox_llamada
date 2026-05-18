@@ -6,7 +6,7 @@
 using namespace std;
 
 extern "C" JNIEXPORT jshortArray JNICALL
-Java_com_example_privox_1app1_AudioDistortionEngine_processPitchShift(
+Java_com_futura_privox_1app_AudioDistortionEngine_processPitchShift(
         JNIEnv* env,
         jobject /* this */,
         jshortArray input,

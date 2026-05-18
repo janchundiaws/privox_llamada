@@ -1,8 +1,8 @@
-package com.example.privox_app1.ui.screens
+package com.futura.privox_app.ui.screens
 
 import android.media.MediaPlayer
 import androidx.compose.runtime.DisposableEffect
-import com.example.privox_app1.R
+import com.futura.privox_app.R
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*

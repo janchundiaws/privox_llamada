@@ -1,4 +1,4 @@
-package com.example.privox_app1.data.remote
+package com.futura.privox_app.data.remote
 
 object Constants {
     var STAY_ONLINE: Boolean = true

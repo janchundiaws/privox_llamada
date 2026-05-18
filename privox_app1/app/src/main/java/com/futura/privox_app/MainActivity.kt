@@ -1,4 +1,4 @@
-package com.example.privox_app1
+package com.futura.privox_app
 
 import android.Manifest
 import android.content.Context
@@ -42,10 +42,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import com.example.privox_app1.ui.theme.Privox_app1Theme
+import com.futura.privox_app.ui.theme.Privox_app1Theme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import com.example.privox_app1.data.remote.SocketService
+import com.futura.privox_app.data.remote.SocketService
 
 class MainActivity : ComponentActivity() {
     private val engine = AudioDistortionEngine()
@@ -89,7 +89,7 @@ class MainActivity : ComponentActivity() {
                     var isSpeakerOn by remember { mutableStateOf(false) }
                     var isDistortionEnabled by remember { mutableStateOf(false) }
 
-                    val socketService = remember { com.example.privox_app1.data.remote.SocketService.getInstance(this@MainActivity) }
+                    val socketService = remember { com.futura.privox_app.data.remote.SocketService.getInstance(this@MainActivity) }
                     val isConnected by socketService.isConnected.collectAsState()
                     
                     // Handle Intent Actions (like clicking notifications)
@@ -151,7 +151,7 @@ class MainActivity : ComponentActivity() {
                         if (currentScreen == "CallingIncoming" || currentScreen == "CallingOutgoing" || currentScreen == "Call") {
                             val savedStyle = prefs.getString("voice_style", "ROBOT") ?: "ROBOT"
                             try {
-                                val mode = com.example.privox_app1.AudioDistortionEngine.DistortionMode.valueOf(savedStyle)
+                                val mode = com.futura.privox_app.AudioDistortionEngine.DistortionMode.valueOf(savedStyle)
                                 socketService.currentDistortionMode = mode
                                 socketService.isDistortionEnabled = true
                                 isDistortionEnabled = true
@@ -207,7 +207,7 @@ class MainActivity : ComponentActivity() {
 
                     when (currentScreen) {
                         "Login" -> {
-                            com.example.privox_app1.ui.screens.LoginScreen(
+                            com.futura.privox_app.ui.screens.LoginScreen(
                                 onLoginSuccess = { user ->
                                     loggedInUser = user
                                     currentScreen = "Home"
@@ -216,7 +216,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         "CallingIncoming" -> {
-                            com.example.privox_app1.ui.screens.CallingScreen(
+                            com.futura.privox_app.ui.screens.CallingScreen(
                                 username = currentContact,
                                 isEmisor = false,
                                 onAccept = {
@@ -233,7 +233,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         "CallingOutgoing" -> {
-                            com.example.privox_app1.ui.screens.CallingScreen(
+                            com.futura.privox_app.ui.screens.CallingScreen(
                                 username = currentContact,
                                 isEmisor = true,
                                 onAccept = {},
@@ -245,7 +245,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         "Call" -> {
-                            com.example.privox_app1.ui.screens.CallScreen(
+                            com.futura.privox_app.ui.screens.CallScreen(
                                 username = currentContact,
                                 callDurationSeconds = callDuration,
                                 isMuted = isMuted,
@@ -269,7 +269,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         "Home" -> {
-                            com.example.privox_app1.ui.screens.MainTabsScreen(
+                            com.futura.privox_app.ui.screens.MainTabsScreen(
                                 username = loggedInUser,
                                 engine = engine,
                                 onSettingsClick = { currentScreen = "Settings" },
@@ -305,7 +305,7 @@ class MainActivity : ComponentActivity() {
                                     currentScreen = "Chat"
                                 },
                                 onLogoutClick = {
-                                    val authService = com.example.privox_app1.data.remote.AuthService(this@MainActivity)
+                                    val authService = com.futura.privox_app.data.remote.AuthService(this@MainActivity)
                                     authService.logout()
                                     loggedInUser = ""
                                     currentScreen = "Login"
@@ -314,10 +314,10 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         "Settings" -> {
-                            com.example.privox_app1.ui.screens.SettingsScreen(
+                            com.futura.privox_app.ui.screens.SettingsScreen(
                                 onBack = { currentScreen = "Home" },
                                 onLogout = {
-                                    val authService = com.example.privox_app1.data.remote.AuthService(this@MainActivity)
+                                    val authService = com.futura.privox_app.data.remote.AuthService(this@MainActivity)
                                     authService.logout()
                                     loggedInUser = ""
                                     currentScreen = "Login"

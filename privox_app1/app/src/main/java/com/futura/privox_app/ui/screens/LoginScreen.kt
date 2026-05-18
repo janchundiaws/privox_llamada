@@ -1,4 +1,4 @@
-package com.example.privox_app1.ui.screens
+package com.futura.privox_app.ui.screens
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -18,11 +18,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.privox_app1.R
+import com.futura.privox_app.R
 
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
-import com.example.privox_app1.data.remote.AuthService
+import com.futura.privox_app.data.remote.AuthService
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

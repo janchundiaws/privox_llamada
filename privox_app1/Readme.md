@@ -14,7 +14,6 @@ privox_app1/
 │   │   └── native-lib.cpp               # Motor de pitch shift en C++ (JNI)
 │   ├── java/com/example/privox_app1/
 │   │   ├── AudioDistortionEngine.kt     # Motor DSP principal (Kotlin)
-│   │   ├── AgoraVoiceChanger.kt         # Stub/mock (no usado en producción)
 │   │   ├── MainActivity.kt              # Activity principal y navegación
 │   │   ├── data/remote/
 │   │   │   ├── SocketService.kt         # WebRTC + WebSocket + intercepción de audio
@@ -264,16 +263,14 @@ Disponible desde la pantalla `VoiceChangerTestScreen` en la tab de la app.
 |-------|------|-----------|
 | `HighPassState` | Filtro IIR 1er orden | `cutoffHz` (default: 80 Hz) |
 | `BandPassState` | HP + LP en cascada | `lowHz`, `highHz` |
-| `RobotState` | Ring Modulation | portadora 50 Hz |
+| `RobotState` | Ring Modulation | portadora 120 Hz |
 | `AlienState` | Chorus + delay | LFO 1.5 Hz, buffer 1024 |
 | `VocoderState` | BandPass + bitcrush | 400–3500 Hz, 4-bit |
-| `PitchState` | AM modulation | 120 Hz (experimental) |
 
 ---
 
 ## 📌 Notas Importantes
 
-- `AgoraVoiceChanger.kt` es solo un **mock/stub** — no participa en ningún flujo de producción.
 - El pipeline está diseñado para **48 kHz, mono, PCM 16-bit** (`FRAME_SIZE = 1024` samples).
 - La distorsión introduce una **latencia mínima** (solo la duración de un frame: ~21 ms a 48kHz).
 - Los ICE Servers se obtienen dinámicamente desde `GET /api/ice` + fallback a `stun:stun.l.google.com:19302`.

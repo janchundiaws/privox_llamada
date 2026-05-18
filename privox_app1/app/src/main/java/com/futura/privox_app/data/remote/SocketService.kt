@@ -1,4 +1,4 @@
-package com.example.privox_app1.data.remote
+package com.futura.privox_app.data.remote
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -8,7 +8,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
 import androidx.core.app.NotificationCompat
-import com.example.privox_app1.MainActivity
+import com.futura.privox_app.MainActivity
 import com.google.gson.Gson
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -89,7 +89,7 @@ class SocketService private constructor(private val context: Context) {
     }
 
     @Volatile
-    var currentDistortionMode = com.example.privox_app1.AudioDistortionEngine.DistortionMode.ROBOT
+    var currentDistortionMode = com.futura.privox_app.AudioDistortionEngine.DistortionMode.ROBOT
     
     @Volatile
     var isDistortionEnabled: Boolean = false
@@ -97,7 +97,7 @@ class SocketService private constructor(private val context: Context) {
             field = value
             Log.d("SocketService", "Distorsión activada: $value")
         }
-    private val distortionEngine = com.example.privox_app1.AudioDistortionEngine()
+    private val distortionEngine = com.futura.privox_app.AudioDistortionEngine()
 
     private fun ensureFactoryInitialized() {
         if (peerConnectionFactory != null) return
