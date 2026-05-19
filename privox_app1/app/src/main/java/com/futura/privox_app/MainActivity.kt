@@ -146,19 +146,26 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    // Refresco dinámico de estilo de voz al iniciar cualquier fase de llamada
+                    // La distorsión solo se activa cuando la llamada está ACTIVA ("Call").
+                    // NO activar en CallingIncoming/CallingOutgoing: esas pantallas aún no
+                    // tienen WebRTC iniciado y activar isDistortionEnabled en background
+                    // provoca que Android detecte acceso al micrófono y mate el socket TCP.
                     LaunchedEffect(currentScreen) {
-                        if (currentScreen == "CallingIncoming" || currentScreen == "CallingOutgoing" || currentScreen == "Call") {
+                        if (currentScreen == "Call") {
                             val savedStyle = prefs.getString("voice_style", "ROBOT") ?: "ROBOT"
                             try {
                                 val mode = com.futura.privox_app.AudioDistortionEngine.DistortionMode.valueOf(savedStyle)
                                 socketService.currentDistortionMode = mode
                                 socketService.isDistortionEnabled = true
                                 isDistortionEnabled = true
-                                Log.d("MainActivity", "🔄 Estilo de voz configurado para la sesión: ${mode.label}")
+                                Log.d("MainActivity", "🔄 Estilo de voz activado para llamada activa: ${mode.label}")
                             } catch (e: Exception) {
                                 Log.e("MainActivity", "Error al cargar estilo de voz: $e")
                             }
+                        } else if (currentScreen == "Home") {
+                            // Al volver a Home, desactivar la distorsión
+                            socketService.isDistortionEnabled = false
+                            isDistortionEnabled = false
                         }
                     }
 
@@ -169,7 +176,6 @@ class MainActivity : ComponentActivity() {
                                 val type = event["type"] as? String
                                 when (type) {
                                     "incoming-call" -> {
-                                        Log.d("MainActivity", "🔔 Evento socket: Llamada entrante de $currentCallFromId")
                                         // Rechazar solo si ya estamos en una llamada activa.
                                         // Settings, Home y cualquier otra pantalla SÍ pueden recibir llamadas.
                                         val busyScreens = setOf("CallingIncoming", "CallingOutgoing", "Call")
@@ -336,9 +342,24 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         val socketService = SocketService.getInstance(this)
+        // Marcar app en primer plano: SocketService omitirá la notificación
+        // entrante porque la UI ya navega a CallingIncoming via _events.
+        SocketService.isAppInForeground = true
+        // Si había una notificación de llamada entrante visible (IncomingCallService activo),
+        // detenerla ahora que el usuario ya está en la app. La UI de CallingIncoming
+        // se encarga de mostrar la llamada en pantalla — la notificación es redundante.
+        if (socketService.incomingCallNotificationShowing) {
+            socketService.cancelNotificationOnForeground()
+        }
         if (!socketService.isConnected.value) {
             socketService.connect()
         }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // App pasa a segundo plano: activar notificaciones para llamadas entrantes.
+        SocketService.isAppInForeground = false
     }
 
     override fun onRestart() {

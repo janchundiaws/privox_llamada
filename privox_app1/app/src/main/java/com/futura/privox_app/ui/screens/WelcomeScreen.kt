@@ -119,7 +119,7 @@ fun WelcomeScreen(
                     Column {
                         Text(
                             text = username,
-                            fontSize = 18.sp,
+                            fontSize = 17.sp,
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(4.dp))
@@ -263,7 +263,7 @@ fun ContactItem(contactName: String, onCallClick: () -> Unit, onChatClick: () ->
     var showBottomSheet by remember { mutableStateOf(false) }
 
     ListItem(
-        headlineContent = { Text(contactName, fontWeight = FontWeight.Bold) },
+        headlineContent = { Text(contactName, fontWeight = FontWeight.Bold, fontSize = 15.sp) },
         supportingContent = { Text("ID: ${contactName.hashCode()}") },
         leadingContent = {
             Box(

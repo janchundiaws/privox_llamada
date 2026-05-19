@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">privox</string>
+    <!-- Etiquetas de atribución para el Panel de Privacidad de Android 12+.
+         Describen para qué propósito la app accede al micrófono. -->
+    <string name="attribution_voice_call">Llamada de voz</string>
+    <string name="attribution_foreground_service">Servicio de llamada activa</string>
 </resources>

@@ -8,6 +8,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
 import androidx.core.app.NotificationCompat
+import com.futura.privox_app.IncomingCallService
 import com.futura.privox_app.MainActivity
 import com.google.gson.Gson
 import kotlinx.coroutines.*
@@ -31,6 +32,18 @@ class SocketService private constructor(private val context: Context) {
                 instance ?: SocketService(context.applicationContext).also { instance = it }
             }
         }
+
+        // Se actualiza desde MainActivity.onStart / onStop.
+        // Cuando la app está en primer plano la UI ya navega a CallingIncoming
+        // via _events, por lo que la notificación sería redundante y al tocarla
+        // generaría un segundo onNewIntent() causando doble navegación.
+        @Volatile
+        var isAppInForeground: Boolean = false
+
+        // IDs fijos para notificaciones. Solo puede existir una llamada activa a la vez,
+        // por lo que IDs constantes son más seguros que callId.hashCode() (puede colisionar).
+        private const val CALL_NOTIFICATION_ID = 1001
+        private const val CALL_CANCELLED_NOTIFICATION_ID = 1002
     }
 
     private val TAG = "SocketService"
@@ -40,6 +53,10 @@ class SocketService private constructor(private val context: Context) {
     private val gson = Gson()
     private val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     private val CHANNEL_ID = "call_channel"
+    // Indica si la notificación de llamada entrante está actualmente visible.
+    // internal: necesario para que MainActivity pueda verificar el estado antes
+    // de llamar a cancelNotificationOnForeground() en onStart().
+    internal var incomingCallNotificationShowing = false
 
     var webSocket: WebSocket? = null
     var peerConnection: PeerConnection? = null
@@ -168,30 +185,40 @@ class SocketService private constructor(private val context: Context) {
                 _isConnected.value = true
                 isConnecting = false
                 message = "✅ Conectado"
-                Log.d(TAG, message!!)
+                val thread = Thread.currentThread().name
+                val fg = isAppInForeground
+                Log.d(TAG, "🔌 [WS-OPEN] hilo=$thread | foreground=$fg | code=${response.code} | url=${response.request.url}")
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
                 try {
                     val data = gson.fromJson(text, Map::class.java) as Map<String, Any?>
+                    val msgType = data["type"] as? String ?: "unknown"
+                    val thread = Thread.currentThread().name
+                    val fg = isAppInForeground
+                    Log.d(TAG, "📨 [WS-MSG] tipo=$msgType | hilo=$thread | foreground=$fg | connected=${isConnected.value}")
                     coroutineScope.launch {
                         // For incoming calls, pre-fetch username to avoid UI lag
                         if (data["type"] == "incoming-call") {
                             val fromId = data["from"] as? String
+                            Log.d(TAG, "📞 [WS-MSG incoming-call] fromId=$fromId | foreground=$fg")
                             if (fromId != null) {
                                 val username = getUsernameById(fromId)
+                                Log.d(TAG, "📞 [WS-MSG incoming-call] username resuelto=$username")
                                 val mutableData = data.toMutableMap()
                                 mutableData["fromUsername"] = username
                                 _events.emit(mutableData)
                                 handleIncomingMessage(mutableData)
                                 return@launch
+                            } else {
+                                Log.w(TAG, "⚠️ [WS-MSG incoming-call] fromId es NULL — datos incompletos del servidor: $data")
                             }
                         }
                         _events.emit(data)
                         handleIncomingMessage(data)
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error parsing message: $e")
+                    Log.e(TAG, "❌ [WS-MSG] Error parseando mensaje: $e | texto=$text")
                 }
             }
 
@@ -199,14 +226,25 @@ class SocketService private constructor(private val context: Context) {
                 _isConnected.value = false
                 isConnecting = false
                 message = "❌ Desconectado del servidor"
-                Log.d(TAG, message!!)
+                val thread = Thread.currentThread().name
+                val fg = isAppInForeground
+                // code 1000 = cierre normal; otros = cierre anormal
+                Log.w(TAG, "🔒 [WS-CLOSED] code=$code | reason='$reason' | hilo=$thread | foreground=$fg")
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 _isConnected.value = false
                 isConnecting = false
                 message = "❌ Error en la conexión: ${t.message}"
-                Log.e(TAG, message!!)
+                val thread = Thread.currentThread().name
+                val fg = isAppInForeground
+                val causeMsg  = t.cause?.message ?: "sin causa"
+                val causeType = t.cause?.javaClass?.simpleName ?: "N/A"
+                Log.e(TAG, "💥 [WS-FAILURE] hilo=$thread | foreground=$fg | connected=${isConnected.value}")
+                Log.e(TAG, "💥 [WS-FAILURE] excepcion=${t.javaClass.simpleName} | msg=${t.message}")
+                Log.e(TAG, "💥 [WS-FAILURE] causa=$causeType | causeMsg=$causeMsg")
+                Log.e(TAG, "💥 [WS-FAILURE] respuesta HTTP=${response?.code} | url=${response?.request?.url}")
+                Log.e(TAG, "💥 [WS-FAILURE] stacktrace:", t)
             }
         })
     }
@@ -297,10 +335,22 @@ class SocketService private constructor(private val context: Context) {
                 }
             }
             "call-reject" -> {
-                message = "❌ Llamada rechazada servicio: ${data["callId"]}"
+                // Llamante canceló antes de que aceptemos.
+                val fromId = (data["from"] as? String) ?: ""
+                val callerName = usersCache[fromId] ?: "El llamante"
+                val wasWaiting = !isAppInForeground && incomingCallNotificationShowing
+                cancelIncomingCallNotification()
+                if (wasWaiting) showCallCancelledNotification(callerName)
+                message = "❌ Llamada cancelada por $callerName"
             }
             "hangup" -> {
-                // Let MainActivity handle disposal and navigation
+                // Puede ser colgado antes de aceptar (desde fondo) o durante la llamada.
+                val fromId = (data["from"] as? String) ?: ""
+                val callerName = usersCache[fromId] ?: "El llamante"
+                val wasWaiting = !isAppInForeground && incomingCallNotificationShowing
+                cancelIncomingCallNotification()
+                if (wasWaiting) showCallCancelledNotification(callerName)
+                // MainActivity maneja la navegación y liberación de recursos
             }
             "offer", "answer", "ice" -> {
                 handleSignal(data)
@@ -674,49 +724,81 @@ class SocketService private constructor(private val context: Context) {
 
     private fun createNotificationChannel() {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            val ringtoneUri = android.media.RingtoneManager.getDefaultUri(
+                android.media.RingtoneManager.TYPE_RINGTONE
+            )
+            val audioAttributes = android.media.AudioAttributes.Builder()
+                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                .build()
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "Llamadas",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = "Notificaciones de llamadas entrantes"
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 500, 200, 500, 200, 500)
+                setSound(ringtoneUri, audioAttributes)
             }
             notificationManager.createNotificationChannel(channel)
         }
     }
 
     private fun showIncomingCallNotification(username: String, callerId: String, callId: String) {
-        // FLAG_ACTIVITY_SINGLE_TOP: si la app ya está abierta, Android llama
-        // onNewIntent() en la instancia existente en lugar de crear una nueva.
-        // FLAG_ACTIVITY_NEW_TASK: necesario para lanzar desde fuera de una Activity.
-        // NO usar FLAG_ACTIVITY_CLEAR_TASK: destruiría el estado de Compose y el
-        // socket, lo que impediría la navegación a CallingIncoming.
-        val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            putExtra("callId", callId)
-            putExtra("fromId", callerId)
-            putExtra("fromName", username)
-            putExtra("screen", "CallingIncoming")
+        // Si la app está en primer plano, _events ya ha navegado la UI a CallingIncoming.
+        // Mostrar la notificación sería redundante y al tocarla generaría un segundo
+        // onNewIntent() causando una doble navegación hacia la pantalla de llamada.
+        if (isAppInForeground) {
+            Log.d(TAG, "📱 App en primer plano: omitiendo notificación para $username")
+            return
         }
 
-        val pendingIntent = PendingIntent.getActivity(
-            context,
-            callId.hashCode(), // requestCode único por callId para evitar colisiones
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        // Iniciar el Foreground Service: esto llama a startForeground() internamente,
+        // lo que le indica al SO que el proceso tiene una operación visible para el
+        // usuario (la llamada) y NO debe matar la red bajo Doze Mode.
+        IncomingCallService.start(context, username, callId, callerId)
+        incomingCallNotificationShowing = true
+        Log.d(TAG, "🟢 IncomingCallService iniciado — socket protegido de Doze Mode")
+    }
 
+    // Cancela la notificación de llamada entrante si estaba visible.
+    // Idempotente: si la notificación no existía, no hace nada.
+    private fun cancelIncomingCallNotification() {
+        if (incomingCallNotificationShowing) {
+            // Detener el ForegroundService: esto retira la notificación y
+            // libera al proceso de la protección de Doze Mode (ya no es necesaria).
+            IncomingCallService.stop(context)
+            incomingCallNotificationShowing = false
+            Log.d(TAG, "🔕 IncomingCallService detenido y notificación cancelada")
+        }
+    }
+
+    /**
+     * Llamado desde MainActivity.onStart() cuando la app vuelve a primer plano
+     * con una notificación de llamada entrante activa.
+     * Detiene el IncomingCallService (y su notificación) sin mostrar
+     * "llamada cancelada" — el usuario ya está en la app viendo CallingIncoming.
+     */
+    fun cancelNotificationOnForeground() {
+        if (incomingCallNotificationShowing) {
+            IncomingCallService.stop(context)
+            incomingCallNotificationShowing = false
+            Log.d(TAG, "🔕 Notificación eliminada al entrar a primer plano")
+        }
+    }
+
+    // Muestra una notificación informativa de que el llamante canceló la llamada.
+    // Solo se invoca cuando la app está en segundo plano y había una notificación activa.
+    private fun showCallCancelledNotification(callerName: String) {
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_call)
-            .setContentTitle("📞 Llamada entrante")
-            .setContentText("$username está llamando...")
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_CALL)
-            .setFullScreenIntent(pendingIntent, true)
-            .setContentIntent(pendingIntent)   // también al tocar el cuerpo de la notif
+            .setContentTitle("📵 Llamada cancelada")
+            .setContentText("$callerName canceló la llamada")
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
-
-        notificationManager.notify(callId.hashCode(), builder.build())
+        notificationManager.notify(CALL_CANCELLED_NOTIFICATION_ID, builder.build())
+        Log.d(TAG, "Notificación de llamada cancelada mostrada para $callerName")
     }
 
     private fun calculateRMS(data: ByteArray): Double {

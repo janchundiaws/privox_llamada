@@ -74,9 +74,14 @@ fun CallingScreen(
             }
 
             Spacer(modifier = Modifier.height(80.dp))
+            Text(
+                text = if (isEmisor) "Llamando a " else "Llamada de",
+                color = Color.White,
+                textAlign = TextAlign.Center
+            )
 
             Text(
-                text = if (isEmisor) "Llamando a $username" else "Llamada de $username",
+                text = username,
                 color = Color.White,
                 fontSize = 22.sp,
                 textAlign = TextAlign.Center
