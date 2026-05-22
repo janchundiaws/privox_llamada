@@ -1,5 +1,7 @@
 package com.futura.privox_app.ui.screens
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -49,6 +51,7 @@ fun CallScreen(
 
     val context = LocalContext.current
     val socketService = remember { SocketService.getInstance(context) }
+    var isNear by remember { mutableStateOf(false) }
 
     DisposableEffect(isSpeakerOn) {
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -63,10 +66,32 @@ fun CallScreen(
             wakeLock?.acquire()
         }
 
+        val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        val proximitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY)
+
+        val listener = object : SensorEventListener {
+            override fun onSensorChanged(event: SensorEvent?) {
+                if (event != null && event.sensor.type == Sensor.TYPE_PROXIMITY) {
+                    val distance = event.values[0]
+                    isNear = distance < event.sensor.maximumRange
+                }
+            }
+
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+        }
+
+        if (!isSpeakerOn && proximitySensor != null) {
+            sensorManager.registerListener(listener, proximitySensor, SensorManager.SENSOR_DELAY_NORMAL)
+        } else {
+            isNear = false
+        }
+
         onDispose {
             if (wakeLock?.isHeld == true) {
                 wakeLock.release()
             }
+            sensorManager.unregisterListener(listener)
+            isNear = false
         }
     }
 
@@ -200,6 +225,20 @@ fun CallScreen(
                     Text("Colgar", color = Color.White, fontSize = 12.sp)
                 }
             }
+        }
+
+        if (isNear) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black)
+                    .zIndex(Float.MAX_VALUE)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {} // Intercept all click events to prevent accidental touches
+                    )
+            )
         }
     }
 }

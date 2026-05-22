@@ -2,6 +2,7 @@ package com.futura.privox_app.data.remote
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -10,6 +11,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
+import kotlin.math.log
 import kotlin.random.Random
 
 class AuthService(private val context: Context) {
@@ -59,8 +61,6 @@ class AuthService(private val context: Context) {
                     if (userMap != null) {
                         val deviceId = userMap["deviceId"]?.toString() ?: ""
                         prefs.edit()
-                            .putString("username", username)
-                            .putString("displayName", displayName)
                             .putString("deviceId", deviceId)
                             .apply()
                         return@withContext Result.success(username)
@@ -89,6 +89,7 @@ class AuthService(private val context: Context) {
                     "deviceId": "$loginDeviceId"
                 }
             """.trimIndent()
+            Log.d("AuthService", "JSON enviado: ${jsonBody}")
 
             val url = if (BASE_URL.endsWith("/")) "${BASE_URL}api/auth/login" else "$BASE_URL/api/auth/login"
             val request = Request.Builder()

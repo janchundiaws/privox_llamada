@@ -359,8 +359,8 @@ fun UsersRequestsScreen(
                         )
                     } else {
                         SheetOptionItem(
-                            text = "Cancelar solicitud",
-                            icon = Icons.Default.Close,
+                            text = "Eliminar solicitud",
+                            icon = Icons.Default.Delete,
                             isDestructive = true,
                             onClick = {
                                 scope.launch {

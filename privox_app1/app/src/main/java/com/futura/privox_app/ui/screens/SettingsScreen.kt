@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -209,12 +211,104 @@ fun SettingsScreen(
                             onClick = null
                         )
                         HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 1.dp)
+                        var showPrivacyPolicy by remember { mutableStateOf(false) }
                         SettingsRowItem(
                             title = "Política de privacidad",
                             icon = Icons.Default.Info,
-                            onClick = { /* Mostrar política */ },
+                            onClick = { showPrivacyPolicy = true },
                             showArrow = true
                         )
+                        
+                        if (showPrivacyPolicy) {
+                            AlertDialog(
+                                onDismissRequest = { showPrivacyPolicy = false },
+                                title = { 
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(36.dp)
+                                                .clip(CircleShape)
+                                                .background(Color(0xFFEFF6FF)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Security,
+                                                contentDescription = null,
+                                                tint = Color(0xFF2575FC),
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Text(
+                                            text = "Política de privacidad", 
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 18.sp,
+                                            color = Color(0xFF111827)
+                                        ) 
+                                    }
+                                },
+                                text = {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .verticalScroll(rememberScrollState())
+                                            .padding(vertical = 8.dp)
+                                    ) {
+                                        Text(
+                                            text = "En Privox valoramos tu privacidad por encima de todo. Nuestra aplicación está diseñada bajo el principio de minimización de datos: no recopilamos información personal innecesaria y procesamos el contenido sensible localmente.",
+                                            fontSize = 14.sp,
+                                            color = Color(0xFF4B5563),
+                                            modifier = Modifier.padding(bottom = 16.dp)
+                                        )
+                                        
+                                        PrivacySection(
+                                            title = "1. Registro y Cuentas Anónimas",
+                                            content = "Privox genera cuentas automáticamente utilizando un identificador único aleatorio asociado a tu dispositivo. No solicitamos correos electrónicos, nombres reales, números telefónicos ni contraseñas. Esto garantiza que tu identidad en la red de llamadas sea completamente anónima.",
+                                            icon = Icons.Default.AccountCircle
+                                        )
+
+                                        PrivacySection(
+                                            title = "2. Distorsión de Voz en Tiempo Real",
+                                            content = "La alteración de la voz se ejecuta directamente en el chip de sonido de tu dispositivo utilizando nuestro motor nativo (AudioDistortionEngine en C++/Kotlin). El flujo de voz modificado se envía en tiempo real al receptor, pero tu voz original nunca se graba, almacena ni se transmite sin procesar.",
+                                            icon = Icons.Default.Mic
+                                        )
+
+                                        PrivacySection(
+                                            title = "3. Cifrado y Llamadas P2P",
+                                            content = "Las llamadas de voz se establecen de extremo a extremo mediante el protocolo WebRTC P2P. Una vez que se inicia la llamada, los datos de audio viajan cifrados y directamente entre los dispositivos de ambos usuarios. El servidor de señalización (WebSockets) únicamente interviene para coordinar el inicio de la llamada y no puede escuchar ni registrar la conversación.",
+                                            icon = Icons.Default.Lock
+                                        )
+
+                                        PrivacySection(
+                                            title = "4. Permisos de Hardware Utilizados",
+                                            content = "• Micrófono: Indispensable para capturar el audio durante las llamadas activas.\n• Notificaciones: Permite alertarte en tiempo real sobre llamadas entrantes cuando la app está minimizada.\n• Sensor de Proximidad: Detecta la cercanía del rostro para apagar la pantalla, bloqueando clics erróneos durante la llamada activa.\n• Estado de Red: Utilizado para detectar caídas de internet y reconectar tus llamadas o tu conexión de mensajería sin interrupciones.",
+                                            icon = Icons.Default.Build
+                                        )
+
+                                        PrivacySection(
+                                            title = "5. Almacenamiento Local Seguro",
+                                            content = "La información de inicio de sesión, el token de sesión y la configuración del efecto de voz preferido se guardan en el almacenamiento local seguro (SharedPreferences) del teléfono. No usamos cookies, SDKs publicitarias, ni herramientas de analíticas de terceros para rastrear tus hábitos.",
+                                            icon = Icons.Default.Storage
+                                        )
+
+                                        PrivacySection(
+                                            title = "6. Control y Derechos Absolutos",
+                                            content = "Al no recopilar datos personales, tienes el control total. Puedes cerrar sesión para revocar el token de acceso, desvincular tus contactos, o simplemente desinstalar la app para borrar toda huella local.",
+                                            icon = Icons.Default.AssignmentInd
+                                        )
+                                    }
+                                },
+                                confirmButton = {
+                                    TextButton(onClick = { showPrivacyPolicy = false }) {
+                                        Text("Entendido", color = Color(0xFF2575FC), fontWeight = FontWeight.Bold)
+                                    }
+                                },
+                                containerColor = Color.White
+                            )
+                        }
                         HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 1.dp)
                         
                         var showLogoutDialog by remember { mutableStateOf(false) }
@@ -361,4 +455,45 @@ fun SettingSwitchItem(
             )
         }
     )
+}
+
+@Composable
+private fun PrivacySection(title: String, content: String, icon: ImageVector) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(Color(0xFFEFF6FF)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = Color(0xFF2575FC),
+                modifier = Modifier.size(16.dp)
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                color = Color(0xFF111827)
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = content,
+                fontSize = 13.sp,
+                color = Color(0xFF4B5563),
+                lineHeight = 18.sp
+            )
+        }
+    }
 }

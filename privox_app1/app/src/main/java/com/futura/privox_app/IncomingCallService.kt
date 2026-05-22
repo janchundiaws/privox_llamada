@@ -45,20 +45,83 @@ class IncomingCallService : Service() {
                 putExtra(EXTRA_CALL_ID, callId)
                 putExtra(EXTRA_FROM_ID, fromId)
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+                Log.d("IncomingCallService", "▶️ startForegroundService solicitado para $callerName")
+            } catch (e: Exception) {
+                Log.w("IncomingCallService", "⚠️ No se pudo iniciar el Foreground Service desde background (${e.message}). Usando fallback directo de notificación.")
+                showNotificationDirectly(context, callerName, callId, fromId)
             }
-            Log.d("IncomingCallService", "▶️ startForegroundService solicitado para $callerName")
         }
 
         fun stop(context: Context) {
+            // Cancelar la notificación directamente en cualquier caso
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.cancel(NOTIFICATION_ID)
+
             val intent = Intent(context, IncomingCallService::class.java).apply {
                 action = ACTION_STOP
             }
-            context.startService(intent)
+            try {
+                context.startService(intent)
+            } catch (e: Exception) {
+                // Si la app está en background y no se permite startService, detendremos usando stopService.
+                try {
+                    context.stopService(Intent(context, IncomingCallService::class.java))
+                } catch (e2: Exception) {
+                    Log.e("IncomingCallService", "Error al detener el servicio con stopService: ${e2.message}")
+                }
+            }
             Log.d("IncomingCallService", "⏹️ Detención del servicio solicitada")
+        }
+
+        fun buildNotification(context: Context, callerName: String, callId: String, fromId: String): Notification {
+            // El canal ya fue creado por SocketService.createNotificationChannel()
+            // pero nos aseguramos de que exista si el servicio arranca primero.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                if (nm.getNotificationChannel(CHANNEL_ID) == null) {
+                    val ch = android.app.NotificationChannel(
+                        CHANNEL_ID, "Llamadas", NotificationManager.IMPORTANCE_HIGH
+                    )
+                    nm.createNotificationChannel(ch)
+                }
+            }
+
+            val tapIntent = Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                putExtra("callId",   callId)
+                putExtra("fromId",   fromId)
+                putExtra("fromName", callerName)
+                putExtra("screen",   "CallingIncoming")
+            }
+            val pendingIntent = PendingIntent.getActivity(
+                context, NOTIFICATION_ID, tapIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            return NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.ic_menu_call)
+                .setContentTitle("📞 Llamada entrante")
+                .setContentText("$callerName está llamando...")
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_CALL)
+                .setFullScreenIntent(pendingIntent, true)
+                .setContentIntent(pendingIntent)
+                .setOngoing(true)       // no se puede deslizar para quitar
+                .setAutoCancel(false)   // solo se quita cuando es cancelada
+                .build()
+        }
+
+        private fun showNotificationDirectly(context: Context, callerName: String, callId: String, fromId: String) {
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val notification = buildNotification(context, callerName, callId, fromId)
+            nm.notify(NOTIFICATION_ID, notification)
+            Log.d("IncomingCallService", "🔔 Notificación mostrada directamente en fallback")
         }
     }
 
@@ -102,40 +165,6 @@ class IncomingCallService : Service() {
     }
 
     private fun buildNotification(callerName: String, callId: String, fromId: String): Notification {
-        // El canal ya fue creado por SocketService.createNotificationChannel()
-        // pero nos aseguramos de que exista si el servicio arranca primero.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            if (nm.getNotificationChannel(CHANNEL_ID) == null) {
-                val ch = android.app.NotificationChannel(
-                    CHANNEL_ID, "Llamadas", NotificationManager.IMPORTANCE_HIGH
-                )
-                nm.createNotificationChannel(ch)
-            }
-        }
-
-        val tapIntent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            putExtra("callId",   callId)
-            putExtra("fromId",   fromId)
-            putExtra("fromName", callerName)
-            putExtra("screen",   "CallingIncoming")
-        }
-        val pendingIntent = PendingIntent.getActivity(
-            this, NOTIFICATION_ID, tapIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_menu_call)
-            .setContentTitle("📞 Llamada entrante")
-            .setContentText("$callerName está llamando...")
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_CALL)
-            .setFullScreenIntent(pendingIntent, true)
-            .setContentIntent(pendingIntent)
-            .setOngoing(true)       // no se puede deslizar para quitar
-            .setAutoCancel(false)   // solo se quita cuando el servicio se detiene
-            .build()
+        return Companion.buildNotification(this, callerName, callId, fromId)
     }
 }

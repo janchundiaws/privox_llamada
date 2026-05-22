@@ -46,7 +46,15 @@ fun CallingScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black),
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF0D47A1), // Deep Blue
+                        Color(0xFF1A237E), // Indigo
+                        Color(0xFF000000)  // Black
+                    )
+                )
+            ),
         contentAlignment = Alignment.TopCenter
     ) {
         Column(

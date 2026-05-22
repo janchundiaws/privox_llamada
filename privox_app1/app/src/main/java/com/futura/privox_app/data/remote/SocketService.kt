@@ -169,6 +169,7 @@ class SocketService private constructor(private val context: Context) {
     }
 
     fun connect() {
+        try{
         if (isConnecting || isConnected.value) return
         isConnecting = true
         
@@ -240,13 +241,13 @@ class SocketService private constructor(private val context: Context) {
                 val fg = isAppInForeground
                 val causeMsg  = t.cause?.message ?: "sin causa"
                 val causeType = t.cause?.javaClass?.simpleName ?: "N/A"
-                Log.e(TAG, "💥 [WS-FAILURE] hilo=$thread | foreground=$fg | connected=${isConnected.value}")
-                Log.e(TAG, "💥 [WS-FAILURE] excepcion=${t.javaClass.simpleName} | msg=${t.message}")
-                Log.e(TAG, "💥 [WS-FAILURE] causa=$causeType | causeMsg=$causeMsg")
-                Log.e(TAG, "💥 [WS-FAILURE] respuesta HTTP=${response?.code} | url=${response?.request?.url}")
-                Log.e(TAG, "💥 [WS-FAILURE] stacktrace:", t)
             }
         })
+
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error janchundia: ${e}")
+        }
+
     }
 
     fun disconnect() {

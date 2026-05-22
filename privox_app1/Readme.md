@@ -275,3 +275,59 @@ Disponible desde la pantalla `VoiceChangerTestScreen` en la tab de la app.
 - La distorsión introduce una **latencia mínima** (solo la duración de un frame: ~21 ms a 48kHz).
 - Los ICE Servers se obtienen dinámicamente desde `GET /api/ice` + fallback a `stun:stun.l.google.com:19302`.
 - El auto-hangup por desconexión está configurado a **15 segundos** (`handleReconnectionTimeout`).
+
+---
+
+## 📱 Sensor de Proximidad Inteligente
+
+**Archivo:** [CallScreen.kt](file:///Users/williamanchundiasoza/PRY-TRABAJO/futura/privox_llamada/privox_app1/app/src/main/java/com/futura/privox_app/ui/screens/CallScreen.kt)
+
+Para evitar toques accidentales con el rostro (mejilla/oreja) durante una llamada de voz activa, se implementó un control inteligente usando el sensor de proximidad del dispositivo:
+
+*   **Detección en tiempo real:** Registra un `SensorEventListener` con el tipo `Sensor.TYPE_PROXIMITY` dentro de un `DisposableEffect`.
+*   **Condición del Altavoz:** La detección solo se activa si el altavoz de manos libres está **apagado** (`isSpeakerOn = false`). Si el usuario activa el manos libres, el sensor se desactiva automáticamente.
+*   **Bloqueo de Pantalla Físico y Lógico:**
+    *   **Lógico:** Al detectar que el usuario acerca el dispositivo al oído, se superpone un overlay opaco de color negro a pantalla completa con el máximo nivel de profundidad (`zIndex(Float.MAX_VALUE)`). Este overlay intercepta y consume todos los eventos táctiles utilizando el modificador `.clickable(...)` sin efecto de onda (ripple), protegiendo botones críticos como colgar, silenciar o pausar.
+    *   **Físico:** Utiliza de forma complementaria el `PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK` para apagar físicamente la pantalla en dispositivos compatibles.
+
+---
+
+## 🛜 Reconexión Automática del WebSocket (Resiliencia de Red)
+
+**Archivo:** [SocketService.kt](file:///Users/williamanchundiasoza/PRY-TRABAJO/futura/privox_llamada/privox_app1/app/src/main/java/com/futura/privox_app/data/remote/SocketService.kt)
+
+En entornos móviles donde las conexiones de red son propensas a interrupciones rápidas (cambios de Wi-Fi a datos móviles o pérdida momentánea de señal), se incorporó un motor de auto-reconexión para la señalización:
+
+*   **Intercepción de Fallos:** Los eventos `onClosed` (desconexiones anormales) y `onFailure` (errores de socket como *Software caused connection abort*) inician un hilo de reconexión.
+*   **Reintentos Programados:** Utiliza una tarea en segundo plano (`wsReconnectionJob`) que intenta volver a conectar de forma segura tras un intervalo de **5 segundos**.
+*   **Control de Estado:** Asegura no colapsar el servidor limpiando cualquier cola de reconexión activa si la conexión se realiza de forma manual o si el usuario cierra su sesión deliberadamente (`logout()`).
+
+---
+
+## 🔔 Soporte de Servicio en Segundo Plano (Android 12+)
+
+**Archivo:** [IncomingCallService.kt](file:///Users/williamanchundiasoza/PRY-TRABAJO/futura/privox_llamada/privox_app1/IncomingCallService.kt)
+
+A partir de Android 12 (API 31+), Google introdujo restricciones severas sobre la ejecución de servicios en primer plano, prohibiendo `startForegroundService()` si la aplicación se encuentra en segundo plano bajo ciertas condiciones (lanzando `ForegroundServiceStartNotAllowedException`).
+
+Para mitigar cierres inesperados (crashes) y asegurar la recepción de llamadas entrantes:
+*   **Bloque Try-Catch Seguro:** El inicio del servicio se encuentra encapsulado. Si el sistema operativo deniega la instanciación del servicio en primer plano, el error se captura de manera silenciosa para evitar la excepción fatal.
+*   **Fallback Inmediato:** En caso de fallo, la aplicación muestra directamente la notificación de llamada entrante en alta prioridad (Heads-up Notification) mediante el `NotificationManager` del contexto.
+*   **Ciclo de Vida Consistente:** Las llamadas de limpieza y parada del servicio están protegidas para ejecutarse con seguridad en cualquier estado en el que termine la llamada.
+
+---
+
+## 🔒 Políticas de Privacidad Integradas
+
+**Archivo:** [SettingsScreen.kt](file:///Users/williamanchundiasoza/PRY-TRABAJO/futura/privox_llamada/privox_app1/app/src/main/java/com/futura/privox_app/ui/screens/SettingsScreen.kt)
+
+Para cumplir con políticas de privacidad estrictas y aportar transparencia a los usuarios, se diseñó e integró un panel completo de información legal y técnica dentro de la sección de Configuración:
+
+*   **Ejes de Privacidad Documentados:**
+    1.  **Registro Anónimo:** Detalla la creación automática de cuentas con IDs aleatorios, eliminando la necesidad de datos personales (correos, nombres reales, números telefónicos).
+    2.  **Motor DSP Local:** Confirma que el procesamiento de distorsión de voz ocurre localmente en memoria sin almacenar grabaciones.
+    3.  **Cifrado P2P:** Explica el funcionamiento de la comunicación WebRTC cifrada directa entre usuarios.
+    4.  **Justificación de Permisos:** Explica por qué son requeridos los permisos de Micrófono, Notificaciones, Proximity Sensor y Estado de Red.
+    5.  **Seguridad Local:** Declara el almacenamiento exclusivo de credenciales y efectos dentro de `SharedPreferences` sin cookies de rastreo de terceros.
+*   **Diseño Visual Premium:** Cuenta con un modal estilizado que incluye una cabecera con un escudo de seguridad y listados horizontales estructurados con iconos temáticos específicos para cada punto (`Security`, `AccountCircle`, `Mic`, `Lock`, `Build`, `Storage`, `AssignmentInd`), usando una paleta minimalista y moderna.
+
