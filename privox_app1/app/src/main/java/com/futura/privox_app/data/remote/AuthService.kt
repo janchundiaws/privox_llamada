@@ -31,9 +31,10 @@ class AuthService(private val context: Context) {
                 return@withContext Result.success(existingUsername)
             }
 
-            val timestamp = System.currentTimeMillis() * 1000 // To match microseconds format approx
+            //generacion de random username
+            val timestamp = System.currentTimeMillis() * 2 // To match microseconds format approx
             val suffix = String.format("%04d", Random.nextInt(1000000))
-            val username = "${timestamp}_$suffix"
+            val username = "${suffix}_${timestamp}"
             val displayName = "Usuario $suffix"
 
             val jsonBody = """

@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -65,6 +66,7 @@ fun UsersRequestsScreen(
     }
 
     Scaffold(
+        containerColor = Color(0xFFF9FAFB),
         topBar = {
             PrivoxTopBar(
                 title = "",
@@ -78,39 +80,65 @@ fun UsersRequestsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp)
+                .padding(horizontal = 24.dp, vertical = 8.dp)
         ) {
+            Text(
+                text = "Solicitudes",
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF111827)
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = if (showIncoming) "Solicitudes de amistad recibidas" else "Solicitudes de amistad enviadas",
+                fontSize = 14.sp,
+                color = Color(0xFF6B7280)
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Selector estilo píldora minimalista
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color.LightGray.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                    .background(Color(0xFFF3F4F6), RoundedCornerShape(24.dp))
                     .padding(4.dp)
             ) {
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (showIncoming) Color(0xFF2575FC) else Color.Transparent)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(if (showIncoming) Color.White else Color.Transparent)
                         .clickable { showIncoming = true }
-                        .padding(vertical = 12.dp),
+                        .padding(vertical = 10.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("Recibidas", color = if (showIncoming) Color.White else Color.Black, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "Recibidas",
+                        color = if (showIncoming) Color(0xFF2575FC) else Color(0xFF6B7280),
+                        fontWeight = if (showIncoming) FontWeight.Bold else FontWeight.Normal,
+                        fontSize = 14.sp
+                    )
                 }
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (!showIncoming) Color(0xFF2575FC) else Color.Transparent)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(if (!showIncoming) Color.White else Color.Transparent)
                         .clickable { showIncoming = false }
-                        .padding(vertical = 12.dp),
+                        .padding(vertical = 10.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("Enviadas", color = if (!showIncoming) Color.White else Color.Black, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "Enviadas",
+                        color = if (!showIncoming) Color(0xFF2575FC) else Color(0xFF6B7280),
+                        fontWeight = if (!showIncoming) FontWeight.Bold else FontWeight.Normal,
+                        fontSize = 14.sp
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             PullToRefreshBox(
                 isRefreshing = isLoading,
@@ -127,54 +155,123 @@ fun UsersRequestsScreen(
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Icon(Icons.Default.Warning, contentDescription = null, tint = Color.Red, modifier = Modifier.size(48.dp))
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(errorMessage!!, color = Color.Red)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Button(onClick = { fetchRequests() }) {
-                            Text("Reintentar")
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = Color(0xFFEF4444),
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = errorMessage!!,
+                            color = Color(0xFFEF4444),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(modifier = Modifier.height(20.dp))
+                        Button(
+                            onClick = { fetchRequests() },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2575FC)),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Reintentar", color = Color.White)
                         }
                     }
                 } else if (allRequests.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(if (showIncoming) "No hay solicitudes recibidas" else "No hay solicitudes enviadas")
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Email,
+                            contentDescription = null,
+                            tint = Color(0xFFD1D5DB),
+                            modifier = Modifier.size(64.dp)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = if (showIncoming) "No tienes solicitudes recibidas" else "No has enviado solicitudes",
+                            color = Color(0xFF6B7280),
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 15.sp
+                        )
                     }
                 } else {
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         items(allRequests) { req ->
                             val username = req["username"] ?: ""
                             val displayName = req["displayName"] ?: ""
                             val nameToShow = if (username.isNotEmpty()) username else displayName
                             val avatarLetter = if (nameToShow.isNotEmpty()) nameToShow.first().uppercaseChar().toString() else "?"
 
-                            ListItem(
-                                headlineContent = { Text(nameToShow, fontWeight = FontWeight.Bold) },
-                                supportingContent = { Text(displayName) },
-                                leadingContent = {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .clip(CircleShape)
-                                            .background(Color(0xFFAB47BC)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(avatarLetter, color = Color.White, fontWeight = FontWeight.Bold)
-                                    }
-                                },
-                                trailingContent = {
-                                    IconButton(onClick = {
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(16.dp),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
                                         selectedRequest = req
                                         showBottomSheet = true
-                                    }) {
-                                        Icon(Icons.Default.MoreVert, contentDescription = "Opciones")
                                     }
-                                },
-                                modifier = Modifier.clickable {
-                                    selectedRequest = req
-                                    showBottomSheet = true
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(44.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFFEFF6FF)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = avatarLetter,
+                                            color = Color(0xFF2575FC),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 16.sp
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Column(
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text(
+                                            text = nameToShow,
+                                            color = Color(0xFF111827),
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 15.sp
+                                        )
+                                        if (displayName.isNotEmpty() && displayName != nameToShow) {
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = displayName,
+                                                color = Color(0xFF6B7280),
+                                                fontSize = 13.sp
+                                            )
+                                        }
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            selectedRequest = req
+                                            showBottomSheet = true
+                                        }
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.MoreVert,
+                                            contentDescription = "Opciones",
+                                            tint = Color(0xFF9CA3AF)
+                                        )
+                                    }
                                 }
-                            )
-                            HorizontalDivider()
+                            }
                         }
                     }
                 }
@@ -182,15 +279,58 @@ fun UsersRequestsScreen(
         }
 
         if (showBottomSheet && selectedRequest != null) {
-            ModalBottomSheet(onDismissRequest = { showBottomSheet = false }) {
-                Column(modifier = Modifier.padding(16.dp)) {
+            ModalBottomSheet(
+                onDismissRequest = { showBottomSheet = false },
+                containerColor = Color.White,
+                dragHandle = { BottomSheetDefaults.DragHandle(color = Color(0xFFE5E7EB)) }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .padding(top = 8.dp, bottom = 32.dp)
+                ) {
                     val requestId = selectedRequest!!["requestId"] ?: ""
-                    
+                    val username = selectedRequest!!["username"] ?: ""
+                    val displayName = selectedRequest!!["displayName"] ?: ""
+                    val nameToShow = if (username.isNotEmpty()) username else displayName
+
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(104.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFEFF6FF)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = nameToShow.take(1).uppercase(),
+                                color = Color(0xFF2575FC),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 64.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = nameToShow,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp,
+                            color = Color(0xFF111827)
+                        )
+                    }
+
+
                     if (showIncoming) {
-                        ListItem(
-                            headlineContent = { Text("Aceptar solicitud") },
-                            leadingContent = { Icon(Icons.Default.Add, contentDescription = null) },
-                            modifier = Modifier.clickable {
+                        SheetOptionItem(
+                            text = "Aceptar solicitud",
+                            icon = Icons.Default.Add,
+                            onClick = {
                                 scope.launch {
                                     val result = authService.updateRequestStatus(requestId, "accepted")
                                     if (result.isSuccess) {
@@ -201,10 +341,12 @@ fun UsersRequestsScreen(
                                 }
                             }
                         )
-                        ListItem(
-                            headlineContent = { Text("Rechazar solicitud") },
-                            leadingContent = { Icon(Icons.Default.Close, contentDescription = null) },
-                            modifier = Modifier.clickable {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        SheetOptionItem(
+                            text = "Rechazar solicitud",
+                            icon = Icons.Default.Close,
+                            isDestructive = true,
+                            onClick = {
                                 scope.launch {
                                     val result = authService.updateRequestStatus(requestId, "rejected")
                                     if (result.isSuccess) {
@@ -216,10 +358,11 @@ fun UsersRequestsScreen(
                             }
                         )
                     } else {
-                        ListItem(
-                            headlineContent = { Text("Cancelar solicitud") },
-                            leadingContent = { Icon(Icons.Default.Close, contentDescription = null) },
-                            modifier = Modifier.clickable {
+                        SheetOptionItem(
+                            text = "Cancelar solicitud",
+                            icon = Icons.Default.Close,
+                            isDestructive = true,
+                            onClick = {
                                 scope.launch {
                                     val result = authService.updateRequestStatus(requestId, "cancelled")
                                     if (result.isSuccess) {
@@ -231,13 +374,14 @@ fun UsersRequestsScreen(
                             }
                         )
                     }
+
+                    Spacer(modifier = Modifier.height(8.dp))
                     
-                    ListItem(
-                        headlineContent = { Text("Cerrar opciones") },
-                        leadingContent = { Icon(Icons.Default.ArrowBack, contentDescription = null) },
-                        modifier = Modifier.clickable { showBottomSheet = false }
+                    SheetOptionItem(
+                        text = "Cancelar",
+                        icon = Icons.Default.Close,
+                        onClick = { showBottomSheet = false }
                     )
-                    Spacer(modifier = Modifier.height(32.dp))
                 }
             }
         }
@@ -253,3 +397,35 @@ fun UsersRequestsScreen(
         )
     }
 }
+
+@Composable
+fun SheetOptionItem(
+    text: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    isDestructive: Boolean = false
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 14.dp, horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (isDestructive) Color(0xFFEF4444) else Color(0xFF4B5563),
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Text(
+            text = text,
+            color = if (isDestructive) Color(0xFFEF4444) else Color(0xFF1F2937),
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+

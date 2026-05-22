@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -72,6 +73,7 @@ fun WelcomeScreen(
     }
 
     Scaffold(
+        containerColor = Color(0xFFF9FAFB),
         topBar = {
             PrivoxTopBar(
                 onSettingsClick = onSettingsClick,
@@ -83,71 +85,92 @@ fun WelcomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(horizontal = 20.dp, vertical = 16.dp)
+                .padding(horizontal = 24.dp, vertical = 8.dp)
         ) {
-            // Profile Card
+            // Profile Card (Modernized)
             Card(
-                shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .padding(top = 16.dp)
                 ) {
-                    Box(
+                    Column(
                         modifier = Modifier
-                            .size(80.dp)
-                            .clip(CircleShape)
+                            .fillMaxWidth()
+                            .padding(bottom = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(104.dp)
+                                .clip(CircleShape)
                             .background(
                                 Brush.linearGradient(
-                                    colors = listOf(Color(0xFF42A5F5), Color(0xFFAB47BC))
+                                    colors = listOf(Color(0xFF2575FC), Color(0xFF38BDF8))
                                 )
                             ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = username.take(1).uppercase(),
-                            color = Color.White,
-                            fontSize = 32.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(16.dp))
-
-                    Column {
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = username.take(1).uppercase(),
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 64.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
                         Text(
                             text = username,
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp,
+                            color = Color(0xFF111827)
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Id: ${username.hashCode()}",
-                            color = Color.Gray,
-                            fontSize = 14.sp
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
+
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
-                                .background(if (isConnected) Color(0xFFE8F5E9) else Color(0xFFF5F5F5), RoundedCornerShape(12.dp))
+                                .background(
+                                    if (isConnected) Color(0xFFDCFCE7) else Color(0xFFF3F4F6),
+                                    RoundedCornerShape(12.dp)
+                                )
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                        Text(
+                            text = "Id: ${username.hashCode()}",
+                            color = Color(0xFF6B7280),
+                            fontSize = 13.sp
+                        )
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .background(
+                                    if (isConnected) Color(0xFFDCFCE7) else Color(0xFFF3F4F6),
+                                    RoundedCornerShape(12.dp)
+                                )
                                 .padding(horizontal = 10.dp, vertical = 4.dp)
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(10.dp)
+                                    .size(8.dp)
                                     .clip(CircleShape)
-                                    .background(if (isConnected) Color(0xFF4CAF50) else Color.Gray)
+                                    .background(if (isConnected) Color(0xFF16A34A) else Color(0xFF9CA3AF))
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = if (isConnected) "Online" else "Offline",
-                                color = if (isConnected) Color(0xFF4CAF50) else Color.Gray,
+                                color = if (isConnected) Color(0xFF16A34A) else Color(0xFF4B5563),
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
                             )
+                        }
                         }
                     }
                 }
@@ -155,18 +178,32 @@ fun WelcomeScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Search Bar
-            OutlinedTextField(
+            // Search Bar (Minimalist)
+            TextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
-                placeholder = { Text("Buscar contacto...") },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(8.dp),
-                singleLine = true
+                placeholder = { Text("Buscar contacto...", color = Color(0xFF9CA3AF)) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search", tint = Color(0xFF9CA3AF)) },
+                shape = RoundedCornerShape(16.dp),
+                singleLine = true,
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFFF3F4F6),
+                    unfocusedContainerColor = Color(0xFFF3F4F6),
+                    disabledContainerColor = Color(0xFFF3F4F6),
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    disabledIndicatorColor = Color.Transparent
+                )
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "Mis Contactos",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF111827),
+                modifier = Modifier.padding(top = 20.dp, bottom = 12.dp)
+            )
 
             // Pull to Refresh Box
             PullToRefreshBox(
@@ -179,11 +216,30 @@ fun WelcomeScreen(
                         CircularProgressIndicator(color = Color(0xFF2575FC))
                     }
                 } else if (filteredContacts.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No hay contactos disponibles")
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = null,
+                            tint = Color(0xFFD1D5DB),
+                            modifier = Modifier.size(64.dp)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = if (searchQuery.isEmpty()) "No hay contactos disponibles" else "No se encontraron resultados",
+                            color = Color(0xFF6B7280),
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 15.sp
+                        )
                     }
                 } else {
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         items(filteredContacts) { contact ->
                             val cId = contact["userId"] ?: ""
                             val cName = contact["username"] ?: ""
@@ -193,7 +249,6 @@ fun WelcomeScreen(
                                 onChatClick = { onChatClick(cId, cName) },
                                 onDeleteClick = { contactToDelete = contact }
                             )
-                            HorizontalDivider(color = Color.LightGray.copy(alpha = 0.5f))
                         }
                     }
                 }
@@ -259,60 +314,173 @@ fun WelcomeScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ContactItem(contactName: String, onCallClick: () -> Unit, onChatClick: () -> Unit, onDeleteClick: () -> Unit) {
+fun ContactItem(
+    contactName: String,
+    onCallClick: () -> Unit,
+    onChatClick: () -> Unit,
+    onDeleteClick: () -> Unit
+) {
     var showBottomSheet by remember { mutableStateOf(false) }
 
-    ListItem(
-        headlineContent = { Text(contactName, fontWeight = FontWeight.Bold, fontSize = 15.sp) },
-        supportingContent = { Text("ID: ${contactName.hashCode()}") },
-        leadingContent = {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { showBottomSheet = true }
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(44.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF2575FC)),
+                    .background(Color(0xFFEFF6FF)),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = contactName.take(1).uppercase(),
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold
+                    color = Color(0xFF2575FC),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
                 )
             }
-        },
-        trailingContent = {
-            IconButton(onClick = { showBottomSheet = true }) {
-                Icon(Icons.Default.MoreVert, contentDescription = "Options")
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = contactName,
+                    color = Color(0xFF111827),
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 15.sp
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "ID: ${contactName.hashCode()}",
+                    color = Color(0xFF6B7280),
+                    fontSize = 13.sp
+                )
             }
-        },
-        modifier = Modifier.clickable { showBottomSheet = true }
-    )
+
+            
+            IconButton(onClick = { showBottomSheet = true }) {
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = "Options",
+                    tint = Color(0xFF9CA3AF)
+                )
+            }
+        }
+    }
 
     if (showBottomSheet) {
-        ModalBottomSheet(onDismissRequest = { showBottomSheet = false }) {
-            Column(modifier = Modifier.padding(bottom = 32.dp)) {
-                ListItem(
-                    headlineContent = { Text("Llamada por voz") },
-                    leadingContent = { Icon(Icons.Default.Call, contentDescription = null) },
-                    modifier = Modifier.clickable {
+        ModalBottomSheet(
+            onDismissRequest = { showBottomSheet = false },
+            containerColor = Color.White,
+            dragHandle = { BottomSheetDefaults.DragHandle(color = Color(0xFFE5E7EB)) }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(top = 8.dp, bottom = 32.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(104.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFEFF6FF)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = contactName.take(1).uppercase(),
+                            color = Color(0xFF2575FC),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 64.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = contactName,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp,
+                        color = Color(0xFF111827)
+                    )
+                }
+
+                WelcomeSheetOptionItem(
+                    text = "Llamada por voz",
+                    icon = Icons.Default.Call,
+                    onClick = {
                         showBottomSheet = false
                         onCallClick()
                     }
                 )
-                ListItem(
-                    headlineContent = { Text("Eliminar contacto") },
-                    leadingContent = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color.Red) },
-                    modifier = Modifier.clickable { 
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                WelcomeSheetOptionItem(
+                    text = "Eliminar contacto",
+                    icon = Icons.Default.Delete,
+                    isDestructive = true,
+                    onClick = {
                         showBottomSheet = false
                         onDeleteClick()
                     }
                 )
-                ListItem(
-                    headlineContent = { Text("Cancelar") },
-                    leadingContent = { Icon(Icons.Default.Close, contentDescription = null) },
-                    modifier = Modifier.clickable { showBottomSheet = false }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                WelcomeSheetOptionItem(
+                    text = "Cancelar",
+                    icon = Icons.Default.Close,
+                    onClick = { showBottomSheet = false }
                 )
             }
         }
     }
 }
+
+@Composable
+private fun WelcomeSheetOptionItem(
+    text: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    isDestructive: Boolean = false
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 14.dp, horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (isDestructive) Color(0xFFEF4444) else Color(0xFF4B5563),
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Text(
+            text = text,
+            color = if (isDestructive) Color(0xFFEF4444) else Color(0xFF1F2937),
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
