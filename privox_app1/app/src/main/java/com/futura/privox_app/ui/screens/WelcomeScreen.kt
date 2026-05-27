@@ -391,6 +391,20 @@ fun ContactItem(
                     .padding(horizontal = 24.dp)
                     .padding(top = 8.dp, bottom = 32.dp)
             ) {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.TopEnd) {
+                    IconButton(
+                        onClick = { showBottomSheet = false },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Cerrar",
+                            tint = Color(0xFF9CA3AF),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -420,34 +434,47 @@ fun ContactItem(
                     )
                 }
 
-                WelcomeSheetOptionItem(
-                    text = "Llamada por voz",
-                    icon = Icons.Default.Call,
-                    onClick = {
-                        showBottomSheet = false
-                        onCallClick()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally)
+                ) {
+                    // Delete Button
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFFFEE2E2))
+                            .clickable {
+                                showBottomSheet = false
+                                onDeleteClick()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Eliminar",
+                            tint = Color(0xFFEF4444)
+                        )
                     }
-                )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                WelcomeSheetOptionItem(
-                    text = "Eliminar contacto",
-                    icon = Icons.Default.Delete,
-                    isDestructive = true,
-                    onClick = {
-                        showBottomSheet = false
-                        onDeleteClick()
+                    // Call Button
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFFDCFCE7))
+                            .clickable {
+                                showBottomSheet = false
+                                onCallClick()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Call,
+                            contentDescription = "Llamada",
+                            tint = Color(0xFF16A34A)
+                        )
                     }
-                )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                WelcomeSheetOptionItem(
-                    text = "Cancelar",
-                    icon = Icons.Default.Close,
-                    onClick = { showBottomSheet = false }
-                )
+                }
             }
         }
     }
@@ -483,4 +510,3 @@ private fun WelcomeSheetOptionItem(
         )
     }
 }
-

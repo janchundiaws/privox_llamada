@@ -295,7 +295,19 @@ fun UsersRequestsScreen(
                     val displayName = selectedRequest!!["displayName"] ?: ""
                     val nameToShow = if (username.isNotEmpty()) username else displayName
 
-
+                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.TopEnd) {
+                        IconButton(
+                            onClick = { showBottomSheet = false },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Cerrar",
+                                tint = Color(0xFF9CA3AF),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -325,63 +337,86 @@ fun UsersRequestsScreen(
                         )
                     }
 
-
-                    if (showIncoming) {
-                        SheetOptionItem(
-                            text = "Aceptar solicitud",
-                            icon = Icons.Default.Add,
-                            onClick = {
-                                scope.launch {
-                                    val result = authService.updateRequestStatus(requestId, "accepted")
-                                    if (result.isSuccess) {
-                                        Toast.makeText(context, "Solicitud aceptada", Toast.LENGTH_SHORT).show()
-                                        fetchRequests()
-                                    }
-                                    showBottomSheet = false
-                                }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally)
+                    ) {
+                        if (showIncoming) {
+                            // Reject Button
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFFFEE2E2))
+                                    .clickable {
+                                        scope.launch {
+                                            val result = authService.updateRequestStatus(requestId, "rejected")
+                                            if (result.isSuccess) {
+                                                Toast.makeText(context, "Solicitud rechazada", Toast.LENGTH_SHORT).show()
+                                                fetchRequests()
+                                            }
+                                            showBottomSheet = false
+                                        }
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Rechazar solicitud",
+                                    tint = Color(0xFFEF4444)
+                                )
                             }
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        SheetOptionItem(
-                            text = "Rechazar solicitud",
-                            icon = Icons.Default.Close,
-                            isDestructive = true,
-                            onClick = {
-                                scope.launch {
-                                    val result = authService.updateRequestStatus(requestId, "rejected")
-                                    if (result.isSuccess) {
-                                        Toast.makeText(context, "Solicitud rechazada", Toast.LENGTH_SHORT).show()
-                                        fetchRequests()
-                                    }
-                                    showBottomSheet = false
-                                }
+                            // Accept Button
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFFDCFCE7))
+                                    .clickable {
+                                        scope.launch {
+                                            val result = authService.updateRequestStatus(requestId, "accepted")
+                                            if (result.isSuccess) {
+                                                Toast.makeText(context, "Solicitud aceptada", Toast.LENGTH_SHORT).show()
+                                                fetchRequests()
+                                            }
+                                            showBottomSheet = false
+                                        }
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "Aceptar solicitud",
+                                    tint = Color(0xFF16A34A)
+                                )
                             }
-                        )
-                    } else {
-                        SheetOptionItem(
-                            text = "Eliminar solicitud",
-                            icon = Icons.Default.Delete,
-                            isDestructive = true,
-                            onClick = {
-                                scope.launch {
-                                    val result = authService.updateRequestStatus(requestId, "cancelled")
-                                    if (result.isSuccess) {
-                                        Toast.makeText(context, "Solicitud cancelada", Toast.LENGTH_SHORT).show()
-                                        fetchRequests()
-                                    }
-                                    showBottomSheet = false
-                                }
+                        } else {
+                            // Cancel Button
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFFFEE2E2))
+                                    .clickable {
+                                        scope.launch {
+                                            val result = authService.updateRequestStatus(requestId, "cancelled")
+                                            if (result.isSuccess) {
+                                                Toast.makeText(context, "Solicitud cancelada", Toast.LENGTH_SHORT).show()
+                                                fetchRequests()
+                                            }
+                                            showBottomSheet = false
+                                        }
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Eliminar solicitud",
+                                    tint = Color(0xFFEF4444)
+                                )
                             }
-                        )
+                        }
                     }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    SheetOptionItem(
-                        text = "Cancelar",
-                        icon = Icons.Default.Close,
-                        onClick = { showBottomSheet = false }
-                    )
                 }
             }
         }
@@ -428,4 +463,3 @@ fun SheetOptionItem(
         )
     }
 }
-

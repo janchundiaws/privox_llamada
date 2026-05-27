@@ -284,6 +284,20 @@ fun UsersAddScreen(
                             .padding(bottom = 24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.TopEnd) {
+                            IconButton(
+                                onClick = { showBottomSheet = false },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Cerrar",
+                                    tint = Color(0xFF9CA3AF),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+
                         Box(
                             modifier = Modifier
                                 .size(104.dp)
@@ -306,30 +320,38 @@ fun UsersAddScreen(
                             color = Color(0xFF111827)
                         )
                     }
-                    UsersAddSheetOptionItem(
-                        text = "Agregar contacto",
-                        icon = Icons.Default.Add,
-                        onClick = {
-                            scope.launch {
-                                val result = authService.createRequest(targetId)
-                                if (result.isSuccess) {
-                                    Toast.makeText(context, "Solicitud creada correctamente", Toast.LENGTH_SHORT).show()
-                                    fetchUsers()
-                                } else {
-                                    Toast.makeText(context, "Error: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
-                                }
-                                showBottomSheet = false
-                            }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFFDCFCE7))
+                                .clickable {
+                                    scope.launch {
+                                        val result = authService.createRequest(targetId)
+                                        if (result.isSuccess) {
+                                            Toast.makeText(context, "Solicitud creada correctamente", Toast.LENGTH_SHORT).show()
+                                            fetchUsers()
+                                        } else {
+                                            Toast.makeText(context, "Error: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                        }
+                                        showBottomSheet = false
+                                    }
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = "Agregar contacto",
+                                tint = Color(0xFF16A34A)
+                            )
                         }
-                    )
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    UsersAddSheetOptionItem(
-                        text = "Cancelar",
-                        icon = Icons.Default.Close,
-                        onClick = { showBottomSheet = false }
-                    )
+                    }
+
                 }
             }
         }
@@ -376,4 +398,3 @@ private fun UsersAddSheetOptionItem(
         )
     }
 }
-
