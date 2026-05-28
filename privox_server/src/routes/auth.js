@@ -1,6 +1,7 @@
 import { Router } from "express";
 import jwt from "jsonwebtoken";
 import { User } from "../models/User.js";
+import { authMiddleware } from "../middleware/auth.js";
 import { generateUserId , generateDeviceId} from "../utils/generateId.js";
 
 export const authRouter = Router();
@@ -42,48 +43,35 @@ authRouter.post("/register", async (req, res) => {
 });
 
 /**
- * PATCH /api/auth/username
- * body: { newUsername }
+ * PATCH /api/auth/display-name
+ * body: { newDisplayName }
  * Requiere autenticación (JWT)
- * Cambia el nombre de usuario del usuario autenticado
+ * Cambia el displayName del usuario autenticado
  */
-authRouter.patch("/username", async (req, res) => {
+authRouter.patch("/display-name",authMiddleware, async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader) return res.status(401).json({ error: "Token requerido" });
 
   const token = authHeader.split(" ")[1];
+
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findOne({ userId: decoded.userId });
     if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
 
-    const usernameFromToken = decoded.username;
-    const { username } = req.body || {};
+    const { displayName } = req.body || {};
 
-    if (!usernameFromToken) {
-      return res.status(401).json({ error: "Token inválido" });
+    if (!displayName) return res.status(400).json({ error: "displayName requerido" });
+
+    const existingDisplayName = await User.findOne({ displayName });
+    if (existingDisplayName && existingDisplayName.userId !== user.userId) {
+      return res.status(400).json({ error: "displayName ya en uso" });
     }
 
-    if (!username) return res.status(400).json({ error: "username requerido" });
-
-    if (user.username !== usernameFromToken) {
-      return res.status(401).json({ error: "Token inválido" });
-    }
-
-    if (usernameFromToken === username) {
-      return res.status(400).json({ error: "El nuevo username debe ser diferente" });
-    }
-
-    // validar que no exista username
-    const exists = await User.findOne({ username });
-    if (exists) return res.status(400).json({ error: "username ya en uso" });
-
-    user.username = username;
+    user.displayName = displayName;
     await user.save();
 
-    res.json({
-      user: { id: user.userId, username: user.username, displayName: user.displayName }
-    });
+    res.json({ user: { id: user.userId, username: user.username, displayName: user.displayName } });
   } catch (err) {
     return res.status(401).json({ error: "Token inválido" });
   }
