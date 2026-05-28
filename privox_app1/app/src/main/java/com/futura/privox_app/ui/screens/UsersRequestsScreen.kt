@@ -178,24 +178,31 @@ fun UsersRequestsScreen(
                         }
                     }
                 } else if (allRequests.isEmpty()) {
-                    Column(
+                    LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Email,
-                            contentDescription = null,
-                            tint = Color(0xFFD1D5DB),
-                            modifier = Modifier.size(64.dp)
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = if (showIncoming) "No tienes solicitudes recibidas" else "No has enviado solicitudes",
-                            color = Color(0xFF6B7280),
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 15.sp
-                        )
+                        item{
+                            Column(
+                                modifier = Modifier.fillParentMaxSize(),
+                                verticalArrangement = Arrangement.Center,
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Email,
+                                    contentDescription = null,
+                                    tint = Color(0xFFD1D5DB),
+                                    modifier = Modifier.size(64.dp)
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = if (showIncoming) "No tienes solicitudes recibidas" else "No has enviado solicitudes",
+                                    color = Color(0xFF6B7280),
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 15.sp
+                                )
+                            }
+                        }
                     }
                 } else {
                     LazyColumn(

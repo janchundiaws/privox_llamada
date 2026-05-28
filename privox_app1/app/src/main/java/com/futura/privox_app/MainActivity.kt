@@ -63,8 +63,10 @@ class MainActivity : ComponentActivity() {
                 ) {
                     val prefs = getSharedPreferences("privox_prefs", android.content.Context.MODE_PRIVATE)
                     val savedUsername = prefs.getString("username", "") ?: ""
+                    val savedDisplayName = prefs.getString("displayName", "") ?: ""
                     var currentScreen by remember { mutableStateOf(if (savedUsername.isNotEmpty()) "Home" else "Login") }
                     var loggedInUser by remember { mutableStateOf(savedUsername) }
+                    var displayName by remember { mutableStateOf(savedDisplayName) }
                     var currentContact by remember { mutableStateOf("") }
                     val scope = rememberCoroutineScope()
 
@@ -277,6 +279,7 @@ class MainActivity : ComponentActivity() {
                         "Home" -> {
                             com.futura.privox_app.ui.screens.MainTabsScreen(
                                 username = loggedInUser,
+                                displayName = displayName,
                                 engine = engine,
                                 onSettingsClick = { currentScreen = "Settings" },
                                 requestCall = { targetId, targetName ->

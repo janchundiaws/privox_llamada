@@ -23,6 +23,7 @@ import com.futura.privox_app.VoiceChangerTestScreen
 @Composable
 fun MainTabsScreen(
     username: String,
+    displayName: String,
     engine: AudioDistortionEngine,
     onSettingsClick: () -> Unit,
     requestCall: (String, String) -> Unit,
@@ -157,6 +158,7 @@ fun MainTabsScreen(
             when (page) {
                 0 -> WelcomeScreen(
                     username = username,
+                    displayName = displayName,
                     onSettingsClick = onSettingsClick,
                     onAddUserClick = { scope.launch { pagerState.animateScrollToPage(1) } },
                     onRequestsClick = { scope.launch { pagerState.animateScrollToPage(2) } },

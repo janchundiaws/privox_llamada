@@ -31,6 +31,7 @@ import com.futura.privox_app.ui.components.PrivoxTopBar
 @Composable
 fun WelcomeScreen(
     username: String,
+    displayName: String,
     onSettingsClick: () -> Unit,
     onAddUserClick: () -> Unit,
     onRequestsClick: () -> Unit,
@@ -67,9 +68,10 @@ fun WelcomeScreen(
         fetchContacts()
     }
 
-    val filteredContacts = allContacts.filter { 
+    val filteredContacts = allContacts.filter {
+        val display = it["displayName"] ?: ""
         val name = it["username"] ?: ""
-        name.contains(searchQuery, ignoreCase = true) 
+        display.contains(searchQuery, ignoreCase = true) || username.contains(searchQuery, ignoreCase = true)
     }
 
     Scaffold(
@@ -143,7 +145,7 @@ fun WelcomeScreen(
                                 .padding(horizontal = 10.dp, vertical = 4.dp)
                         ) {
                         Text(
-                            text = "Id: ${username.hashCode()}",
+                            text = displayName,
                             color = Color(0xFF6B7280),
                             fontSize = 13.sp
                         )
@@ -216,24 +218,31 @@ fun WelcomeScreen(
                         CircularProgressIndicator(color = Color(0xFF2575FC))
                     }
                 } else if (filteredContacts.isEmpty()) {
-                    Column(
+                    LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = null,
-                            tint = Color(0xFFD1D5DB),
-                            modifier = Modifier.size(64.dp)
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = if (searchQuery.isEmpty()) "No hay contactos disponibles" else "No se encontraron resultados",
-                            color = Color(0xFF6B7280),
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 15.sp
-                        )
+                        item {
+                            Column(
+                                modifier = Modifier.fillParentMaxSize(),
+                                verticalArrangement = Arrangement.Center,
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Person,
+                                    contentDescription = null,
+                                    tint = Color(0xFFD1D5DB),
+                                    modifier = Modifier.size(64.dp)
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = if (searchQuery.isEmpty()) "No hay contactos disponibles" else "No se encontraron resultados",
+                                    color = Color(0xFF6B7280),
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 15.sp
+                                )
+                            }
+                        }
                     }
                 } else {
                     LazyColumn(
@@ -243,8 +252,10 @@ fun WelcomeScreen(
                         items(filteredContacts) { contact ->
                             val cId = contact["userId"] ?: ""
                             val cName = contact["username"] ?: ""
+                            val cDisplayName = contact["displayName"] ?: ""
                             ContactItem(
                                 contactName = cName,
+                                displayName = cDisplayName,
                                 onCallClick = { requestCall(cId, cName) },
                                 onChatClick = { onChatClick(cId, cName) },
                                 onDeleteClick = { contactToDelete = contact }
@@ -316,6 +327,7 @@ fun WelcomeScreen(
 @Composable
 fun ContactItem(
     contactName: String,
+    displayName: String,
     onCallClick: () -> Unit,
     onChatClick: () -> Unit,
     onDeleteClick: () -> Unit
@@ -362,18 +374,28 @@ fun ContactItem(
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "ID: ${contactName.hashCode()}",
+                    text = displayName,
                     color = Color(0xFF6B7280),
                     fontSize = 13.sp
                 )
             }
 
-            
-            IconButton(onClick = { showBottomSheet = true }) {
+
+            // Call Button
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(50.dp))
+                    .clickable {
+                        showBottomSheet = false
+                        onCallClick()
+                    },
+                contentAlignment = Alignment.Center
+            ) {
                 Icon(
-                    imageVector = Icons.Default.MoreVert,
-                    contentDescription = "Options",
-                    tint = Color(0xFF9CA3AF)
+                    imageVector = Icons.Default.Call,
+                    contentDescription = "Llamada",
+                    tint = Color(0xFF16A34A)
                 )
             }
         }

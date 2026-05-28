@@ -26,6 +26,12 @@ class AuthService(private val context: Context) {
 
     private val prefs: SharedPreferences = context.getSharedPreferences("privox_prefs", Context.MODE_PRIVATE)
 
+    private fun getFullUrl(path: String): String {
+        val cleanBase = if (BASE_URL.endsWith("/")) BASE_URL.substring(0, BASE_URL.length - 1) else BASE_URL
+        val cleanPath = if (path.startsWith("/")) path.substring(1) else path
+        return "$cleanBase/$cleanPath"
+    }
+
     suspend fun createAutomaticUser(): Result<String> = withContext(Dispatchers.IO) {
         try {
             val existingUsername = prefs.getString("username", "") ?: ""
@@ -46,7 +52,7 @@ class AuthService(private val context: Context) {
                 }
             """.trimIndent()
 
-            val url = if (BASE_URL.endsWith("/")) "${BASE_URL}api/auth/register" else "$BASE_URL/api/auth/register"
+            val url = getFullUrl("api/auth/register")
             val request = Request.Builder()
                 .url(url)
                 .post(jsonBody.toRequestBody(JSON))
@@ -91,7 +97,7 @@ class AuthService(private val context: Context) {
             """.trimIndent()
             Log.d("AuthService", "JSON enviado: ${jsonBody}")
 
-            val url = if (BASE_URL.endsWith("/")) "${BASE_URL}api/auth/login" else "$BASE_URL/api/auth/login"
+            val url = getFullUrl("api/auth/login")
             val request = Request.Builder()
                 .url(url)
                 .post(jsonBody.toRequestBody(JSON))
@@ -128,7 +134,7 @@ class AuthService(private val context: Context) {
     suspend fun getUsers(): Result<List<Map<String, String>>> = withContext(Dispatchers.IO) {
         try {
             val token = prefs.getString("token", "") ?: ""
-            val url = if (BASE_URL.endsWith("/")) "${BASE_URL}api/users/usersaccount" else "$BASE_URL/api/users/usersaccount"
+            val url = getFullUrl("api/users/usersaccount")
             val request = Request.Builder()
                 .url(url)
                 .header("Authorization", "Bearer $token")
@@ -149,8 +155,9 @@ class AuthService(private val context: Context) {
                             val id = u["_id"]?.toString() ?: ""
                             val userId = u["userId"]?.toString() ?: ""
                             val username = u["username"]?.toString() ?: u["displayName"]?.toString() ?: ""
+                            val displayName = u["displayName"]?.toString() ?: ""
                             if (userId.isNotEmpty() && username.isNotEmpty() && username != myUsername) {
-                                contacts.add(mapOf("id" to id, "userId" to userId, "username" to username))
+                                contacts.add(mapOf("id" to id, "userId" to userId, "username" to username, "displayName" to displayName))
                             }
                         }
                     }
@@ -167,7 +174,7 @@ class AuthService(private val context: Context) {
     suspend fun getUsersToAdd(): Result<List<Map<String, String>>> = withContext(Dispatchers.IO) {
         try {
             val token = prefs.getString("token", "") ?: ""
-            val url = if (BASE_URL.endsWith("/")) "${BASE_URL}api/users/usersadd" else "$BASE_URL/api/users/usersadd"
+            val url = getFullUrl("api/users/usersadd")
             val request = Request.Builder()
                 .url(url)
                 .header("Authorization", "Bearer $token")
@@ -205,7 +212,7 @@ class AuthService(private val context: Context) {
     suspend fun getRequests(direction: String): Result<List<Map<String, String>>> = withContext(Dispatchers.IO) {
         try {
             val token = prefs.getString("token", "") ?: ""
-            val url = if (BASE_URL.endsWith("/")) "${BASE_URL}api/requests?direction=$direction&status=pending" else "$BASE_URL/api/requests?direction=$direction&status=pending"
+            val url = getFullUrl("api/requests?direction=$direction&status=pending")
             val request = Request.Builder()
                 .url(url)
                 .header("Authorization", "Bearer $token")
@@ -246,7 +253,7 @@ class AuthService(private val context: Context) {
     suspend fun createRequest(toUserId: String): Result<Boolean> = withContext(Dispatchers.IO) {
         try {
             val token = prefs.getString("token", "") ?: ""
-            val url = if (BASE_URL.endsWith("/")) "${BASE_URL}api/requests" else "$BASE_URL/api/requests"
+            val url = getFullUrl("api/requests")
             val jsonBody = """
                 {
                     "to": "$toUserId",
@@ -277,7 +284,7 @@ class AuthService(private val context: Context) {
     suspend fun updateRequestStatus(requestId: String, status: String): Result<Boolean> = withContext(Dispatchers.IO) {
         try {
             val token = prefs.getString("token", "") ?: ""
-            val url = if (BASE_URL.endsWith("/")) "${BASE_URL}api/requests/$requestId" else "$BASE_URL/api/requests/$requestId"
+            val url = getFullUrl("api/requests/$requestId")
             val jsonBody = """
                 {
                     "status": "$status"
@@ -307,7 +314,7 @@ class AuthService(private val context: Context) {
     suspend fun removeContact(targetUserId: String): Result<Boolean> = withContext(Dispatchers.IO) {
         try {
             val token = prefs.getString("token", "") ?: ""
-            val url = if (BASE_URL.endsWith("/")) "${BASE_URL}api/requests/contact/$targetUserId" else "$BASE_URL/api/requests/contact/$targetUserId"
+            val url = getFullUrl("api/requests/contact/$targetUserId")
             
             val request = Request.Builder()
                 .url(url)
@@ -322,6 +329,36 @@ class AuthService(private val context: Context) {
                 } else {
                     val errorMsg = response.body?.string() ?: "Error code: ${response.code}"
                     return@withContext Result.failure(Exception("Failed to remove contact: $errorMsg"))
+                }
+            }
+        } catch (e: Exception) {
+            return@withContext Result.failure(e)
+        }
+    }
+
+    suspend fun changeDisplayName(displayName: String): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            val token = prefs.getString("token", "") ?: ""
+            val url = getFullUrl("api/auth/display-name")
+            val jsonBody = """
+                {
+                    "displayName": "$displayName"
+                }
+            """.trimIndent()
+
+            val request = Request.Builder()
+                .url(url)
+                .header("Authorization", "Bearer $token")
+                .patch(jsonBody.toRequestBody(JSON))
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    return@withContext Result.success(true)
+                } else {
+                    val errorMap = gson.fromJson(response.body?.string(), Map::class.java) as? Map<*, *>
+                    val errorMsg = errorMap?.get("error")?.toString() ?: "Failed to update display name"
+                    return@withContext Result.failure(Exception(errorMsg))
                 }
             }
         } catch (e: Exception) {

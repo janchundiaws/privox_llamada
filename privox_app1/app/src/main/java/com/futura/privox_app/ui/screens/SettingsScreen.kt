@@ -23,8 +23,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import android.content.Context
+import android.widget.Toast
 import com.futura.privox_app.data.remote.Constants
 import com.futura.privox_app.AudioDistortionEngine
+import com.futura.privox_app.data.remote.AuthService
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,6 +37,8 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("privox_prefs", Context.MODE_PRIVATE) }
+    val authService = remember { AuthService(context) }
+    val scope = rememberCoroutineScope()
     
     var voiceStyle by remember {
         mutableStateOf(prefs.getString("voice_style", "ROBOT") ?: "ROBOT")
@@ -187,6 +192,112 @@ fun SettingsScreen(
             }
 
             item {
+                SectionHeader("Cuenta")
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    var showChangeNameDialog by remember { mutableStateOf(false) }
+                    
+                    SettingsRowItem(
+                        title = "Cambiar nombre visible",
+                        subtitle = prefs.getString("displayName", "Usuario"),
+                        icon = Icons.Default.Edit,
+                        onClick = { showChangeNameDialog = true },
+                        showArrow = true
+                    )
+
+                    if (showChangeNameDialog) {
+                        var verifyDisplayName by remember { mutableStateOf("") }
+                        var newDisplayName by remember { mutableStateOf(prefs.getString("displayName", "") ?: "") }
+                        var isProcessing by remember { mutableStateOf(false) }
+
+                        AlertDialog(
+                            onDismissRequest = { if (!isProcessing) showChangeNameDialog = false },
+                            title = { Text("Cambiar nombre visible", fontWeight = FontWeight.Bold) },
+                            text = {
+                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Text(
+                                        text = "Por seguridad, ingresa tu Username actual para confirmar el cambio.",
+                                        fontSize = 13.sp,
+                                        color = Color(0xFF6B7280)
+                                    )
+                                    OutlinedTextField(
+                                        value = verifyDisplayName,
+                                        onValueChange = { verifyDisplayName = it },
+                                        label = { Text("Confirmar DisplayName") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                                    OutlinedTextField(
+                                        value = newDisplayName,
+                                        onValueChange = { newDisplayName = it },
+                                        label = { Text("Nuevo nombre visible") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                                }
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        val currentDisplayName = prefs.getString("displayName", "") ?: ""
+                                        if (verifyDisplayName != currentDisplayName) {
+                                            Toast.makeText(context, "DisplayName incorrecto", Toast.LENGTH_SHORT).show()
+                                            return@Button
+                                        }
+                                        if (newDisplayName.isBlank()) {
+                                            Toast.makeText(context, "El nombre no puede estar vacío", Toast.LENGTH_SHORT).show()
+                                            return@Button
+                                        }
+                                        
+                                        isProcessing = true
+                                        scope.launch {
+                                            val result = authService.changeDisplayName(newDisplayName)
+                                            if (result.isSuccess) {
+                                                prefs.edit().putString("displayName", newDisplayName).apply()
+                                                Toast.makeText(context, "Nombre actualizado", Toast.LENGTH_SHORT).show()
+                                                showChangeNameDialog = false
+                                            } else {
+                                                Toast.makeText(context, "Error: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                            }
+                                            isProcessing = false
+                                        }
+                                    },
+                                    enabled = !isProcessing,
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2575FC)),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    if (isProcessing) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(20.dp),
+                                            color = Color.White,
+                                            strokeWidth = 2.dp
+                                        )
+                                    } else {
+                                        Text("Guardar cambios")
+                                    }
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(
+                                    onClick = { showChangeNameDialog = false },
+                                    enabled = !isProcessing
+                                ) {
+                                    Text("Cancelar", color = Color(0xFF6B7280))
+                                }
+                            },
+                            containerColor = Color.White
+                        )
+                    }
+                }
+            }
+
+            item {
                 SectionHeader("Información")
                 Card(
                     shape = RoundedCornerShape(20.dp),
@@ -284,7 +395,7 @@ fun SettingsScreen(
 
                                         PrivacySection(
                                             title = "4. Permisos de Hardware Utilizados",
-                                            content = "• Micrófono: Indispensable para capturar el audio durante las llamadas activas.\n• Notificaciones: Permite alertarte en tiempo real sobre llamadas entrantes cuando la app está minimizada.\n• Sensor de Proximidad: Detecta la cercanía del rostro para apagar la pantalla, bloqueando clics erróneos durante la llamada activa.\n• Estado de Red: Utilizado para detectar caídas de internet y reconectar tus llamadas o tu conexión de mensajería sin interrupciones.",
+                                            content = "• Micrófono: Indispensable para capturar el audio durante las llamadas activas.\n• Notificaciones: Permite alertarte en tiempo real sobre llamadas entrantes cuando la app está minimizada.\n• Sensor de Proximidad: Detecta la cercanía del rostro para apagar la pantalla, bloqueando clics erróneos durante la llamada activa.\n• Estado de Red: Utilizado para detectar caídas de internet y reconectar tus llamadas o tu conexión de mensería sin interrupciones.",
                                             icon = Icons.Default.Build
                                         )
 
