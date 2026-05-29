@@ -319,6 +319,46 @@ class SocketService private constructor(private val context: Context) {
         webSocket?.send(gson.toJson(payload))
     }
 
+    // --- CHAT METHODS ---
+
+    fun sendChatMessage(toUserId: String, content: String) {
+        val payload = mapOf(
+            "type" to "chat-message",
+            "to" to toUserId,
+            "content" to content
+        )
+        webSocket?.send(gson.toJson(payload))
+    }
+
+    fun sendChatDeliveredAck(messageId: String, fromUserId: String) {
+        val payload = mapOf(
+            "type" to "chat-delivered-ack",
+            "messageId" to messageId,
+            "from" to fromUserId
+        )
+        webSocket?.send(gson.toJson(payload))
+    }
+
+    fun sendChatRead(messageId: String, fromUserId: String) {
+        val payload = mapOf(
+            "type" to "chat-read",
+            "messageId" to messageId,
+            "from" to fromUserId
+        )
+        webSocket?.send(gson.toJson(payload))
+    }
+
+    fun sendChatTyping(toUserId: String, isTyping: Boolean) {
+        val payload = mapOf(
+            "type" to "chat-typing",
+            "to" to toUserId,
+            "isTyping" to isTyping
+        )
+        webSocket?.send(gson.toJson(payload))
+    }
+
+    // --- END CHAT METHODS ---
+
     private suspend fun handleIncomingMessage(data: Map<String, Any?>) {
         val type = data["type"] as? String ?: return
         when (type) {
@@ -361,6 +401,14 @@ class SocketService private constructor(private val context: Context) {
             }
             "peer-offline" -> {
                 Log.w(TAG, "⚠️ Usuario destino offline: ${data["to"]}")
+            }
+            "chat-message" -> {
+                // Auto-enviar ACK de entrega al recibir un mensaje
+                val messageId = data["messageId"] as? String ?: ""
+                val fromUserId = data["from"] as? String ?: ""
+                if (messageId.isNotEmpty() && fromUserId.isNotEmpty()) {
+                    sendChatDeliveredAck(messageId, fromUserId)
+                }
             }
         }
     }

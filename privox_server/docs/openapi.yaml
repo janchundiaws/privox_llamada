@@ -23,6 +23,8 @@ tags:
     description: Solicitudes y contactos
   - name: Presence
     description: Presencia en línea de usuarios
+  - name: Message
+    description: Gestión de mensajes y conversaciones
 components:
   securitySchemes:
     bearerAuth:
@@ -93,6 +95,29 @@ components:
           type: string
           format: date-time
         updatedAt:
+          type: string
+          format: date-time
+    Message:
+      type: object
+      properties:
+        messageId:
+          type: string
+        from:
+          type: string
+        to:
+          type: string
+        content:
+          type: string
+        status:
+          type: string
+          enum: [sent, delivered, read]
+        deliveredAt:
+          type: string
+          format: date-time
+        readAt:
+          type: string
+          format: date-time
+        createdAt:
           type: string
           format: date-time
 paths:
@@ -769,6 +794,110 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-        
-components_extra: []
 
+  /api/messages/conversations:
+    get:
+      tags: [Message]
+      summary: Listar conversaciones recientes y contadores
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Éxito
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  conversations:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        contact:
+                          $ref: '#/components/schemas/User'
+                        lastMessage:
+                          $ref: '#/components/schemas/Message'
+                        unreadCount:
+                          type: integer
+
+  /api/messages/history/{userId}:
+    get:
+      tags: [Message]
+      summary: Historial de mensajes con un contacto
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Éxito
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  messages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Message'
+
+  /api/messages/unread-count:
+    get:
+      tags: [Message]
+      summary: Obtiene el contador global de mensajes sin leer
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Éxito
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+
+  /api/messages/search:
+    get:
+      tags: [Message]
+      summary: Buscar mensajes por texto
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: q
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Éxito
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  messages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Message'
+        '400':
+          description: Término de búsqueda 'q' requerido
+
+components_extra: []

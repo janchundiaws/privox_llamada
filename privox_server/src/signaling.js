@@ -1,6 +1,7 @@
 import { WebSocketServer } from "ws";
 import jwt from "jsonwebtoken";
 import { Call } from "./models/Call.js";
+import { Message } from "./models/Message.js";
 
 export const userSockets = new Map(); // userId -> ws
 export const userPresence = new Map(); // userId -> { status, lastSeen, displayName }
@@ -234,13 +235,14 @@ export function initSignaling(server) {
         const { to, content } = data;
         const messageId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
-          // Guardar en DB (opcional)
-          // await Message.create({
-          //   messageId,
-          //   from: fromId,
-          //   to,
-          //   content,
-          // });
+          // Guardar en DB
+          await Message.create({
+            messageId,
+            from: fromId,
+            to,
+            content,
+            status: "sent"
+          });
 
           const targetWs = userSockets.get(to);
           if (targetWs && targetWs.readyState === targetWs.OPEN) {
@@ -268,6 +270,38 @@ export function initSignaling(server) {
           }
           return;
         }
+
+      // EVENTO: Mensaje Entregado (Cuando el cliente receptor lo obtiene)
+      if (type === "chat-delivered-ack") {
+        const { messageId, from } = data;
+        await Message.findOneAndUpdate({ messageId }, { status: "delivered", deliveredAt: new Date() });
+        const originWs = userSockets.get(from);
+        if (originWs && originWs.readyState === originWs.OPEN) {
+          originWs.send(JSON.stringify({ type: "chat-delivered", messageId, to: fromId }));
+        }
+        return;
+      }
+
+      // EVENTO: Mensaje Leído
+      if (type === "chat-read") {
+        const { messageId, from } = data;
+        await Message.findOneAndUpdate({ messageId }, { status: "read", readAt: new Date() });
+        const originWs = userSockets.get(from);
+        if (originWs && originWs.readyState === originWs.OPEN) {
+          originWs.send(JSON.stringify({ type: "chat-read", messageId, to: fromId }));
+        }
+        return;
+      }
+
+      // EVENTO: Escribiendo...
+      if (type === "chat-typing") {
+        const { to, isTyping } = data;
+        const targetWs = userSockets.get(to);
+        if (targetWs && targetWs.readyState === targetWs.OPEN) {
+          targetWs.send(JSON.stringify({ type: "chat-typing", from: fromId, isTyping }));
+        }
+        return;
+      }
 
     });
 
