@@ -10,6 +10,7 @@ import http from "http";
 import { initSignaling } from "./signaling.js";
 import swaggerUi from "swagger-ui-express";
 import { requestsRouter } from "./routes/requests.js";
+import { presenceRouter } from "./routes/presence.js";
 import YAML from "yamljs";
 import path from "path";
 
@@ -42,6 +43,7 @@ app.use("/api/ice-config", iceRouter); // Para compatibilidad con cliente web ex
 app.use("/api/ice", iceRouter);        // Para cliente Flutter
 app.use("/api/calls", callsRouter);
 app.use("/api/requests", requestsRouter);
+app.use("/api/presence", presenceRouter);
 
 // Servidor HTTP + WebRTC signaling
 const server = http.createServer(app);

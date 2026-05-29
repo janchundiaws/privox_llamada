@@ -21,6 +21,8 @@ tags:
     description: Gestión de usuarios
   - name: Requests
     description: Solicitudes y contactos
+  - name: Presence
+    description: Presencia en línea de usuarios
 components:
   securitySchemes:
     bearerAuth:
@@ -698,5 +700,75 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /api/presence:
+    get:
+      tags: [Presence]
+      summary: Obtener presencia en línea de usuarios
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: userIds
+          required: true
+          schema:
+            type: array
+            items:
+              type: string
+          description: Lista de userIds a consultar (separados por comas)
+      responses:
+        '200':
+          description: Presencia de usuarios
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  presence:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        userId:
+                          type: string
+                        online:
+                          type: boolean
+        '400':
+          description: userIds requerido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/presence/online:
+    get:
+      tags: [Presence]
+      summary: Obtener lista de usuarios en línea
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de usuarios en línea
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  onlineUsers:
+                    type: array
+                    items:
+                      type: string
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        
 components_extra: []
 
