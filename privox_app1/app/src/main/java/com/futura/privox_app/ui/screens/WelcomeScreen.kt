@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import android.util.Log
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.*
@@ -70,8 +71,8 @@ fun WelcomeScreen(
 
     val filteredContacts = allContacts.filter {
         val display = it["displayName"] ?: ""
-        val name = it["username"] ?: ""
-        display.contains(searchQuery, ignoreCase = true) || username.contains(searchQuery, ignoreCase = true)
+        val contactUsername = it["username"] ?: ""
+        display.contains(searchQuery, ignoreCase = true) || contactUsername.contains(searchQuery, ignoreCase = true)
     }
 
     Scaffold(
@@ -372,13 +373,12 @@ fun ContactItem(
             }
 
 
-            // Call Button
+            // Call Button (Quick Access)
             Box(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(RoundedCornerShape(50.dp))
                     .clickable {
-                        showBottomSheet = false
                         onCallClick()
                     },
                 contentAlignment = Alignment.Center
@@ -469,6 +469,24 @@ fun ContactItem(
                             tint = Color(0xFFEF4444)
                         )
                     }
+                    // Chat Button
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFFEFF6FF))
+                            .clickable {
+                                showBottomSheet = false
+                                onChatClick()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Chat,
+                            contentDescription = "Chat",
+                            tint = Color(0xFF2575FC)
+                        )
+                    }
                     // Call Button
                     Box(
                         modifier = Modifier
@@ -490,36 +508,5 @@ fun ContactItem(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun WelcomeSheetOptionItem(
-    text: String,
-    icon: ImageVector,
-    onClick: () -> Unit,
-    isDestructive: Boolean = false
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = 14.dp, horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = if (isDestructive) Color(0xFFEF4444) else Color(0xFF4B5563),
-            modifier = Modifier.size(24.dp)
-        )
-        Spacer(modifier = Modifier.width(16.dp))
-        Text(
-            text = text,
-            color = if (isDestructive) Color(0xFFEF4444) else Color(0xFF1F2937),
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium
-        )
     }
 }
