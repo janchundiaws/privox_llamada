@@ -250,6 +250,70 @@ class AuthService(private val context: Context) {
         }
     }
 
+    suspend fun getConversations(): Result<List<Map<String, Any>>> = withContext(Dispatchers.IO) {
+        try {
+            val token = prefs.getString("token", "") ?: ""
+            val url = getFullUrl("api/messages/conversations")
+            val request = Request.Builder()
+                .url(url)
+                .header("Authorization", "Bearer $token")
+                .get()
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val responseData = response.body?.string()
+                    val body = gson.fromJson(responseData, Map::class.java) as Map<*, *>
+                    val list = body["conversations"] as? List<*> ?: emptyList<Any>()
+                    
+                    val conversations = mutableListOf<Map<String, Any>>()
+                    for (item in list) {
+                        if (item is Map<*, *>) {
+                            conversations.add(item as Map<String, Any>)
+                        }
+                    }
+                    return@withContext Result.success(conversations)
+                } else {
+                    return@withContext Result.failure(Exception("Failed to fetch conversations: ${response.code}"))
+                }
+            }
+        } catch (e: Exception) {
+            return@withContext Result.failure(e)
+        }
+    }
+
+    suspend fun getChatHistory(targetUserId: String, limit: Int, offset: Int): Result<List<Map<String, Any>>> = withContext(Dispatchers.IO) {
+        try {
+            val token = prefs.getString("token", "") ?: ""
+            val url = getFullUrl("api/messages/history/$targetUserId?limit=$limit&offset=$offset")
+            val request = Request.Builder()
+                .url(url)
+                .header("Authorization", "Bearer $token")
+                .get()
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val responseData = response.body?.string()
+                    val body = gson.fromJson(responseData, Map::class.java) as Map<*, *>
+                    val list = body["messages"] as? List<*> ?: emptyList<Any>()
+                    
+                    val messages = mutableListOf<Map<String, Any>>()
+                    for (item in list) {
+                        if (item is Map<*, *>) {
+                            messages.add(item as Map<String, Any>)
+                        }
+                    }
+                    return@withContext Result.success(messages)
+                } else {
+                    return@withContext Result.failure(Exception("Failed to fetch chat history: ${response.code}"))
+                }
+            }
+        } catch (e: Exception) {
+            return@withContext Result.failure(e)
+        }
+    }
+
     suspend fun createRequest(toUserId: String): Result<Boolean> = withContext(Dispatchers.IO) {
         try {
             val token = prefs.getString("token", "") ?: ""

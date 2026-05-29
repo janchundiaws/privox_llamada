@@ -20,7 +20,6 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun PrivoxTopBar(
     onSettingsClick: (() -> Unit)? = null,
-    onLogoutClick: (() -> Unit)? = null,
     onBack: (() -> Unit)? = null,
     title: String = ""
 ) {

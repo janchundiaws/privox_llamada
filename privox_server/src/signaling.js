@@ -233,6 +233,12 @@ export function initSignaling(server) {
 
       if (type === "chat-message") {
         const { to, content } = data;
+        
+        // Validar que el mensaje tenga contenido y destinatario para evitar errores de Mongoose
+        if (!to || !content) {
+          return; // Ignoramos el mensaje si está mal formado
+        }
+        
         const messageId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
           // Guardar en DB
