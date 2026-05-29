@@ -1,14 +1,14 @@
 services:
-  mongo_ghox:
+  mongo_privox:
     image: mongo:6.0.6
     ports:
       - "27018:27017"
     environment:
-      MONGO_INITDB_DATABASE: ghox
+      MONGO_INITDB_DATABASE: privox
       MONGO_INITDB_ROOT_USERNAME: admin
       MONGO_INITDB_ROOT_PASSWORD: adminpassword
     volumes:
-      #- mongo-data:/data/db
+      - mongo-data:/data/db
       - ./mongo-init:/docker-entrypoint-initdb.d:ro
     networks:
       - proxy_network
@@ -68,7 +68,7 @@ services:
     env_file:
       - .env.dev
     depends_on:
-      - mongo_ghox
+      - mongo_privox
       - coturn
 
   app_staging:
@@ -81,7 +81,7 @@ services:
     env_file:
       - .env.staging
     depends_on:
-      - mongo_ghox
+      - mongo_privox
       - coturn
 
   app:
@@ -94,7 +94,7 @@ services:
     env_file:
       - .env
     depends_on:
-      - mongo_ghox
+      - mongo_privox
       - coturn
     networks:
       - proxy_network
@@ -122,6 +122,7 @@ services:
   #     - app
 
 volumes:
+  mongo-data:
   nginx-logs:
 networks:
   proxy_network:

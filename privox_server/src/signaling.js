@@ -50,6 +50,7 @@ export function initSignaling(server) {
         existingWs.close(1000, 'New connection established');
       }
       
+
       // Store socket and presence
       userSockets.set(payload.userId, ws);
       userPresence.set(payload.userId, {

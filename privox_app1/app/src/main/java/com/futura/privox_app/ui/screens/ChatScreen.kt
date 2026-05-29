@@ -24,6 +24,7 @@ import com.futura.privox_app.data.remote.SocketService
 import com.futura.privox_app.ui.components.PrivoxTopBar
 import com.futura.privox_app.utils.CryptoManager.decrypt
 import com.futura.privox_app.utils.CryptoManager.encrypt
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -39,8 +40,10 @@ fun ChatScreen(
     val authService = remember { AuthService(context) }
     var messageText by remember { mutableStateOf("") }
     val messages = remember { mutableStateListOf<ChatMessage>() }
+    val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var isLoadingHistory by remember { mutableStateOf(true) }
+    var initialScrollDone by remember { mutableStateOf(false) }
 
     var offset by remember { mutableIntStateOf(0) }
     var isLoadingMore by remember { mutableStateOf(false) }
@@ -110,7 +113,7 @@ fun ChatScreen(
             messages.clear()
 
             historyMessages.reversed().forEach { msg ->
-                val content = decrypt(msg["content"]?.toString() ?: "")
+                val content = decrypt(msg["content"].toString())
                 val from = msg["from"]?.toString() ?: ""
                 val messageId = msg["messageId"]?.toString() ?: msg["_id"]?.toString()
                 val status = msg["status"]?.toString()
@@ -123,6 +126,13 @@ fun ChatScreen(
             Log.e("ChatScreen", "Error al cargar historial: ${result.exceptionOrNull()?.message}")
         }
         isLoadingHistory = false
+        if (
+            messages.isNotEmpty() &&
+            !initialScrollDone
+        ) {
+            listState.scrollToItem(messages.lastIndex)
+            initialScrollDone = true
+        }
     }
 
     // Escuchar mensajes en tiempo real
@@ -132,15 +142,13 @@ fun ChatScreen(
 
             if (type == "chat-message") {
                 val from = event["from"] as? String
-                val content = event["content"] as? String
-                val messageId = event["messageId"] as? String
+                val content = decrypt(event["content"].toString())
+                val messageId = event["messageId"].toString()
                 val createdAt = event["createdAt"]?.toString() ?: getCurrentTimestamp()
 
                 if (from == contactId && content != null) {
                     messages.add(ChatMessage(content, false, messageId, status = "sent", createdAt = createdAt))
-                    if (messageId != null) {
-                        socketService.sendChatRead(messageId, contactId)
-                    }
+                    socketService.sendChatRead(messageId, contactId)
                 }
             }
 
@@ -176,13 +184,6 @@ fun ChatScreen(
                     CircularProgressIndicator(color = Color(0xFF2575FC))
                 }
             } else {
-                val listState = rememberLazyListState()
-
-                LaunchedEffect(messages.size) {
-                    if (messages.isNotEmpty()) {
-                        listState.animateScrollToItem(messages.lastIndex)
-                    }
-                }
                 LaunchedEffect(listState) {
 
                     snapshotFlow {
@@ -258,13 +259,16 @@ fun ChatScreen(
                     FloatingActionButton(
                         onClick = {
                             if (messageText.isNotBlank()) {
-                                socketService.sendChatMessage(contactId, encrypt(messageText))
                                 messages.add(ChatMessage(
                                     content = messageText,
                                     isFromMe = true,
                                     status = "sent",
                                     createdAt = getCurrentTimestamp()
                                 ))
+                                scope.launch {
+                                    listState.animateScrollToItem(messages.lastIndex)
+                                }
+                                socketService.sendChatMessage(contactId, encrypt(messageText))
                                 messageText = ""
                             }
                         },

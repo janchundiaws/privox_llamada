@@ -27,6 +27,9 @@ jobs:
             echo "Actualizando repositorio..."
             git reset --hard origin/${{ secrets.SERVER_BRANCH }}
 
+            echo "Accediendo al directorio de la aplicación..."
+            cd /root/privox_llamada/privox_server
+
             echo "Deteniendo contenedores..."
             docker-compose down
 

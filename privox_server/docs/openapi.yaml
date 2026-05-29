@@ -5,6 +5,8 @@ info:
   description: |
     Documentación OpenAPI (Swagger) de la API del servidor de llamadas (Privox Server).
     Rutas protegidas requieren header `Authorization: Bearer <token>`.
+    contacto:
+      email:junior_soza@hotmail.es
 # servers:
 #   - url: https://app.privox-server.orb.local
 #   - url: https://app-staging.privox-server.orb.local
