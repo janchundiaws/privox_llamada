@@ -71,8 +71,7 @@ fun UsersRequestsScreen(
             PrivoxTopBar(
                 title = "",
                 onBack = onBack,
-                onSettingsClick = onSettingsClick,
-                onLogoutClick = { showLogoutDialog = true }
+                onSettingsClick = onSettingsClick
             )
         }
     ) { paddingValues ->

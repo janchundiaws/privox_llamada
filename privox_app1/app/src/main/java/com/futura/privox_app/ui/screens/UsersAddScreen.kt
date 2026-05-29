@@ -77,7 +77,6 @@ fun UsersAddScreen(
                 title = "",
                 onBack = onBack,
                 onSettingsClick = onSettingsClick,
-                onLogoutClick = { showLogoutDialog = true }
             )
         }
     ) { paddingValues ->

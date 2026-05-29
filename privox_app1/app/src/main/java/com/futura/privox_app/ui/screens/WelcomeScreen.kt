@@ -79,8 +79,7 @@ fun WelcomeScreen(
         containerColor = Color(0xFFF9FAFB),
         topBar = {
             PrivoxTopBar(
-                onSettingsClick = onSettingsClick,
-                onLogoutClick = { showLogoutDialog = true }
+                onSettingsClick = onSettingsClick
             )
         }
     ) { paddingValues ->

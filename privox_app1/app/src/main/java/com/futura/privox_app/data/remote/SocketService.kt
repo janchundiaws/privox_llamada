@@ -10,6 +10,7 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import com.futura.privox_app.IncomingCallService
 import com.futura.privox_app.MainActivity
+import com.futura.privox_app.utils.CryptoManager.encrypt
 import com.google.gson.Gson
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableSharedFlow

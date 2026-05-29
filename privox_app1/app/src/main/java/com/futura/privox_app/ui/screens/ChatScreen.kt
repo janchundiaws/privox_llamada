@@ -22,6 +22,8 @@ import androidx.compose.ui.unit.sp
 import com.futura.privox_app.data.remote.AuthService
 import com.futura.privox_app.data.remote.SocketService
 import com.futura.privox_app.ui.components.PrivoxTopBar
+import com.futura.privox_app.utils.CryptoManager.decrypt
+import com.futura.privox_app.utils.CryptoManager.encrypt
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -108,7 +110,7 @@ fun ChatScreen(
             messages.clear()
 
             historyMessages.reversed().forEach { msg ->
-                val content = msg["content"]?.toString() ?: ""
+                val content = decrypt(msg["content"]?.toString() ?: "")
                 val from = msg["from"]?.toString() ?: ""
                 val messageId = msg["messageId"]?.toString() ?: msg["_id"]?.toString()
                 val status = msg["status"]?.toString()
@@ -256,10 +258,7 @@ fun ChatScreen(
                     FloatingActionButton(
                         onClick = {
                             if (messageText.isNotBlank()) {
-                                // Nota: Para que el status 'read' funcione, el cliente suele necesitar
-                                // saber el messageId que el servidor asignará.
-                                // Si el servidor no lo devuelve en un ack, se suele generar aquí.
-                                socketService.sendChatMessage(contactId, messageText)
+                                socketService.sendChatMessage(contactId, encrypt(messageText))
                                 messages.add(ChatMessage(
                                     content = messageText,
                                     isFromMe = true,
@@ -304,11 +303,13 @@ fun ChatBubble(message: ChatMessage) {
             modifier = Modifier.widthIn(max = 280.dp)
         ) {
             Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                Text(
-                    text = message.content,
-                    color = textColor,
-                    fontSize = 15.sp
-                )
+                message.content?.let {
+                    Text(
+                        text = it,
+                        color = textColor,
+                        fontSize = 15.sp
+                    )
+                }
 
                 Row(
                     modifier = Modifier.align(Alignment.End),
@@ -352,7 +353,7 @@ private fun formatCreatedAt(isoString: String?): String {
 }
 
 data class ChatMessage(
-    val content: String,
+    val content: String? =  null,
     val isFromMe: Boolean,
     val id: String? = null,
     val status: String? = null,
