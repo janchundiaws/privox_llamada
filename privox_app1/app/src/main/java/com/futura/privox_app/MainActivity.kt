@@ -46,6 +46,7 @@ import com.futura.privox_app.ui.theme.Privox_app1Theme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.futura.privox_app.data.remote.SocketService
+import com.futura.privox_app.ui.screens.ChatScreen
 
 class MainActivity : ComponentActivity() {
     private val engine = AudioDistortionEngine()
@@ -68,6 +69,7 @@ class MainActivity : ComponentActivity() {
                     var loggedInUser by remember { mutableStateOf(savedUsername) }
                     var displayName by remember { mutableStateOf(savedDisplayName) }
                     var currentContact by remember { mutableStateOf("") }
+                    var currentContactId by remember { mutableStateOf("") }
                     val scope = rememberCoroutineScope()
 
                     // Request permissions at start
@@ -311,6 +313,7 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onChatClick = { targetId, targetName ->
                                     currentContact = targetName
+                                    currentContactId = targetId
                                     currentScreen = "Chat"
                                 },
                                 onLogoutClick = {
@@ -331,6 +334,14 @@ class MainActivity : ComponentActivity() {
                                     loggedInUser = ""
                                     currentScreen = "Login"
                                 }
+                            )
+                        }
+                        "Chat" -> {
+                            ChatScreen(
+                                contactId = currentContactId,
+                                contactName = currentContact,
+                                onBack = { currentScreen = "Home" },
+                                socketService = socketService
                             )
                         }
                         "VoiceChanger" -> {

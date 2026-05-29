@@ -133,22 +133,7 @@ fun WelcomeScreen(
                             fontSize = 20.sp,
                             color = Color(0xFF111827)
                         )
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .background(
-                                    if (isConnected) Color(0xFFDCFCE7) else Color(0xFFF3F4F6),
-                                    RoundedCornerShape(12.dp)
-                                )
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
-                        ) {
-                        Text(
-                            text = displayName,
-                            color = Color(0xFF6B7280),
-                            fontSize = 13.sp
-                        )
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -173,7 +158,13 @@ fun WelcomeScreen(
                                 fontWeight = FontWeight.Bold
                             )
                         }
-                        }
+                        
+                        Text(
+                            text = displayName,
+                            color = Color(0xFF6B7280),
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
                     }
                 }
             }
