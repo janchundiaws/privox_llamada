@@ -103,3 +103,25 @@ authRouter.post("/login", async (req, res) => {
     user: { id: user.userId, username: user.username, displayName: user.displayName }
   });
 });
+
+/**
+* GET /api/auth/validate-token
+* headers: { Authorization: "Bearer <token>" }
+* Valida el JWT y devuelve la información del usuario si es válido
+*/
+authRouter.get("/validate-token", authMiddleware, async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.status(401).json({ error: "Token requerido" });
+
+  const token = authHeader.split(" ")[1];
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findOne({ userId: decoded.userId });
+    if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
+
+    res.json({ user: { id: user.userId, username: user.username, displayName: user.displayName } });
+  } catch (err) {
+    return res.status(401).json({ error: "Token inválido" });
+  }
+});

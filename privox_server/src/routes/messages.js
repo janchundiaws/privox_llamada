@@ -107,3 +107,72 @@ messagesRouter.get("/search", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Error interno del servidor" });
   }
 });
+
+//Endpoint para eliminar todo los mensajes historicos que yo e enviado a un chat en especifico
+messagesRouter.delete("/delete-messages/:toId", authMiddleware, async (req, res) => {
+  try {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.status(401).json({ error: "Token requerido" });
+
+  const token = authHeader.split(" ")[1];
+  const decoded = jwt.verify(token, process.env.JWT_SECRET);
+  const currentUserId = decoded.userId;
+  const toId = req.params.toId;
+
+  await Message.deleteMany({ from: currentUserId, to: toId });
+  res.json({ success: true });
+
+  } catch (error) {
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+//Endpoint para eliminar un mensaje en especifico
+messagesRouter.delete("/delete-message/:messageId", authMiddleware, async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: "Token requerido" });
+
+    const token = authHeader.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const currentUserId = decoded.userId;
+    const messageId = req.params.messageId;
+
+    const message = await Message.findById(messageId);
+    if (!message) return res.status(404).json({ error: "Mensaje no encontrado" });
+    if (message.from !== currentUserId && message.to !== currentUserId) {
+      return res.status(403).json({ error: "No tienes permiso para eliminar este mensaje" });
+    }
+
+    await Message.findByIdAndDelete(messageId);
+    res.json({ success: true });
+
+  } catch (error) {
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+//Ednpoint para eliminar una conversación completa entre dos usuarios
+messagesRouter.delete("/delete-conversation/:contactId", authMiddleware, async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: "Token requerido" });
+
+    const token = authHeader.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const currentUserId = decoded.userId;
+    const contactId = req.params.contactId;
+
+    await Message.deleteMany({ 
+      $or: [
+        { from: currentUserId, to: contactId },
+        { from: contactId, to: currentUserId }
+      ]
+    });
+
+    res.json({ success: true });
+
+  } catch (error) {
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});

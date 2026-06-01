@@ -238,6 +238,41 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/auth/validate-token:
+    get:
+      tags: [Auth]
+      summary: Validar token JWT
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Token válido
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Token inválido o usuario no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno al eliminar usuario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'         
+
 
   /api/users/me:
     get:
@@ -901,5 +936,110 @@ paths:
                       $ref: '#/components/schemas/Message'
         '400':
           description: Término de búsqueda 'q' requerido
+
+  /api/messages/delete-messages/{toId}:
+    delete:
+      tags: [Message]
+      summary: Eliminar todos los mensajes del usuario autenticado
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: toId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Mensajes eliminados
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/messages/delete-message/{messageId}:
+    delete:
+      tags: [Message]
+      summary: Eliminar un mensaje específico
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: messageId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Mensaje eliminado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Mensaje no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/messages/delete-conversation/{contactId}:
+    delete:
+      tags: [Message]
+      summary: Eliminar toda la conversación con un contacto
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: contactId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Conversación eliminada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Contacto no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
 components_extra: []
