@@ -1,6 +1,7 @@
 package com.futura.privox_app.ui.screens
 
 import android.util.Log
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -36,6 +37,7 @@ fun ChatScreen(
     onBack: () -> Unit,
     socketService: SocketService
 ) {
+    BackHandler(onBack = onBack)
     val context = LocalContext.current
     val authService = remember { AuthService(context) }
     var messageText by remember { mutableStateOf("") }

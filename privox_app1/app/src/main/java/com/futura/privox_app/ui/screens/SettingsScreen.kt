@@ -1,5 +1,6 @@
 package com.futura.privox_app.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -35,6 +36,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onLogout: () -> Unit
 ) {
+    BackHandler(onBack = onBack)
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("privox_prefs", Context.MODE_PRIVATE) }
     val authService = remember { AuthService(context) }
