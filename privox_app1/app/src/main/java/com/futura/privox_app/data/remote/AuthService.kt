@@ -430,6 +430,56 @@ class AuthService(private val context: Context) {
         }
     }
 
+    suspend fun deleteMessage(messageId: String): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            val token = prefs.getString("token", "") ?: ""
+            val url = getFullUrl("api/messages/delete-message/$messageId")
+            
+            val request = Request.Builder()
+                .url(url)
+                .header("Authorization", "Bearer $token")
+                .header("accept", "application/json")
+                .delete()
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    return@withContext Result.success(true)
+                } else {
+                    val errorMsg = response.body?.string() ?: "Error code: ${response.code}"
+                    return@withContext Result.failure(Exception("Failed to delete message: $errorMsg"))
+                }
+            }
+        } catch (e: Exception) {
+            return@withContext Result.failure(e)
+        }
+    }
+
+    suspend fun deleteConversation(contactoId: String): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            val token = prefs.getString("token", "") ?: ""
+            val url = getFullUrl("api/messages/delete-conversation/$contactoId")
+            
+            val request = Request.Builder()
+                .url(url)
+                .header("Authorization", "Bearer $token")
+                .header("accept", "application/json")
+                .delete()
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    return@withContext Result.success(true)
+                } else {
+                    val errorMsg = response.body?.string() ?: "Error code: ${response.code}"
+                    return@withContext Result.failure(Exception("Failed to delete conversation: $errorMsg"))
+                }
+            }
+        } catch (e: Exception) {
+            return@withContext Result.failure(e)
+        }
+    }
+
     fun logout() {
         prefs.edit()
             .remove("token")

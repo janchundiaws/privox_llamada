@@ -9,7 +9,7 @@ export const messagesRouter = Router();
 messagesRouter.get("/conversations", authMiddleware, async (req, res) => {
   try {
     const currentUserId = req.user.userId;
-    
+
     const conversations = await Message.aggregate([
       {
         $match: {
@@ -68,10 +68,10 @@ messagesRouter.get("/history/:userId", authMiddleware, async (req, res) => {
         { from: targetUserId, to: currentUserId }
       ]
     })
-    .sort({ createdAt: -1 })
-    .skip(offset)
-    .limit(limit)
-    .lean();
+      .sort({ createdAt: -1 })
+      .skip(offset)
+      .limit(limit)
+      .lean();
 
     res.json({ messages });
   } catch (error) {
@@ -84,9 +84,9 @@ messagesRouter.get("/history/:userId", authMiddleware, async (req, res) => {
 messagesRouter.get("/unread-count", authMiddleware, async (req, res) => {
   try {
     const currentUserId = req.user.userId;
-    const count = await Message.countDocuments({ 
-      to: currentUserId, 
-      status: { $ne: "read" } 
+    const count = await Message.countDocuments({
+      to: currentUserId,
+      status: { $ne: "read" }
     });
     res.json({ count });
   } catch (error) {
@@ -111,16 +111,12 @@ messagesRouter.get("/search", authMiddleware, async (req, res) => {
 //Endpoint para eliminar todo los mensajes historicos que yo e enviado a un chat en especifico
 messagesRouter.delete("/delete-messages/:toId", authMiddleware, async (req, res) => {
   try {
-  const authHeader = req.headers.authorization;
-  if (!authHeader) return res.status(401).json({ error: "Token requerido" });
 
-  const token = authHeader.split(" ")[1];
-  const decoded = jwt.verify(token, process.env.JWT_SECRET);
-  const currentUserId = decoded.userId;
-  const toId = req.params.toId;
+    const currentUserId = req.user.userId;
+    const toId = req.params.toId;
 
-  await Message.deleteMany({ from: currentUserId, to: toId });
-  res.json({ success: true });
+    await Message.deleteMany({ from: currentUserId, to: toId });
+    res.json({ success: true });
 
   } catch (error) {
     res.status(500).json({ error: "Error interno del servidor" });
@@ -130,24 +126,21 @@ messagesRouter.delete("/delete-messages/:toId", authMiddleware, async (req, res)
 //Endpoint para eliminar un mensaje en especifico
 messagesRouter.delete("/delete-message/:messageId", authMiddleware, async (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).json({ error: "Token requerido" });
 
-    const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const currentUserId = decoded.userId;
+    const currentUserId = req.user.userId;
     const messageId = req.params.messageId;
 
-    const message = await Message.findById(messageId);
+    const message = await Message.findOne({ messageId });
     if (!message) return res.status(404).json({ error: "Mensaje no encontrado" });
     if (message.from !== currentUserId && message.to !== currentUserId) {
       return res.status(403).json({ error: "No tienes permiso para eliminar este mensaje" });
     }
 
-    await Message.findByIdAndDelete(messageId);
+    await Message.findOneAndDelete({ messageId });
     res.json({ success: true });
 
   } catch (error) {
+    console.log(error);
     res.status(500).json({ error: "Error interno del servidor" });
   }
 });
@@ -155,15 +148,11 @@ messagesRouter.delete("/delete-message/:messageId", authMiddleware, async (req, 
 //Ednpoint para eliminar una conversación completa entre dos usuarios
 messagesRouter.delete("/delete-conversation/:contactId", authMiddleware, async (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).json({ error: "Token requerido" });
 
-    const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const currentUserId = decoded.userId;
+    const currentUserId = req.user.userId;
     const contactId = req.params.contactId;
 
-    await Message.deleteMany({ 
+    await Message.deleteMany({
       $or: [
         { from: currentUserId, to: contactId },
         { from: contactId, to: currentUserId }
@@ -173,6 +162,7 @@ messagesRouter.delete("/delete-conversation/:contactId", authMiddleware, async (
     res.json({ success: true });
 
   } catch (error) {
+    console.log(error);
     res.status(500).json({ error: "Error interno del servidor" });
   }
 });

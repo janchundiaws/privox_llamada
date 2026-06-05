@@ -46,6 +46,7 @@ fun WelcomeScreen(
     var isLoading by remember { mutableStateOf(true) }
     var showLogoutDialog by remember { mutableStateOf(false) }
     var contactToDelete by remember { mutableStateOf<Map<String, String>?>(null) }
+    var conversationToDelete by remember { mutableStateOf<Map<String, String>?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     
     val context = LocalContext.current
@@ -249,7 +250,8 @@ fun WelcomeScreen(
                                 displayName = cDisplayName,
                                 onCallClick = { requestCall(cId, cName) },
                                 onChatClick = { onChatClick(cId, cName) },
-                                onDeleteClick = { contactToDelete = contact }
+                                onDeleteClick = { contactToDelete = contact },
+                                onDeleteConversationClick = { conversationToDelete = contact }
                             )
                         }
                     }
@@ -300,10 +302,41 @@ fun WelcomeScreen(
         )
     }
 
+    if (conversationToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { conversationToDelete = null },
+            title = { Text("Eliminar conversación") },
+            text = { Text("¿Estás seguro de que deseas eliminar la conversación con ${conversationToDelete!!["username"]}?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val id = conversationToDelete!!["userId"] ?: ""
+                        scope.launch {
+                            val result = authService.deleteConversation(id)
+                            if (result.isSuccess) {
+                                android.widget.Toast.makeText(context, "Conversación eliminada", android.widget.Toast.LENGTH_SHORT).show()
+                            } else {
+                                errorMessage = result.exceptionOrNull()?.message ?: "No se pudo eliminar la conversación"
+                            }
+                            conversationToDelete = null
+                        }
+                    }
+                ) {
+                    Text("Eliminar", color = Color.Red)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { conversationToDelete = null }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
     if (errorMessage != null) {
         AlertDialog(
             onDismissRequest = { errorMessage = null },
-            title = { Text("Error al eliminar contacto") },
+            title = { Text("Error") },
             text = { Text(errorMessage!!) },
             confirmButton = {
                 TextButton(onClick = { errorMessage = null }) {
@@ -321,7 +354,8 @@ fun ContactItem(
     displayName: String,
     onCallClick: () -> Unit,
     onChatClick: () -> Unit,
-    onDeleteClick: () -> Unit
+    onDeleteClick: () -> Unit,
+    onDeleteConversationClick: () -> Unit
 ) {
     var showBottomSheet by remember { mutableStateOf(false) }
 
@@ -450,6 +484,24 @@ fun ContactItem(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally)
                 ) {
+                    // Delete Conversation
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFFFEE2E2))
+                            .clickable {
+                                showBottomSheet = false
+                                onDeleteConversationClick()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DeleteSweep,
+                            contentDescription = "Eliminar Conversación",
+                            tint = Color(0xFFEF4444)
+                        )
+                    }
                     // Delete Button
                     Box(
                         modifier = Modifier

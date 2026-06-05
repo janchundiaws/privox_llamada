@@ -2,6 +2,8 @@ package com.futura.privox_app.ui.screens
 
 import android.util.Log
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -50,6 +52,9 @@ fun ChatScreen(
     var offset by remember { mutableIntStateOf(0) }
     var isLoadingMore by remember { mutableStateOf(false) }
     var hasMoreMessages by remember { mutableStateOf(true) }
+
+    var messageToDelete by remember { mutableStateOf<ChatMessage?>(null) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
 
     val pageSize = 10
 
@@ -167,6 +172,47 @@ fun ChatScreen(
         }
     }
 
+    if (showDeleteDialog && messageToDelete != null) {
+        AlertDialog(
+            onDismissRequest = {
+                showDeleteDialog = false
+                messageToDelete = null
+            },
+            title = { Text("Eliminar mensaje") },
+            text = { Text("¿Estás seguro de que quieres eliminar este mensaje?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        Log.d("janchundia", "Deleting message with ID: ${messageToDelete}")
+                        val msgId = messageToDelete?.id
+                        if (msgId != null) {
+                            scope.launch {
+                                val result = authService.deleteMessage(msgId)
+                                if (result.isSuccess) {
+                                    messages.removeAll { it.id == msgId }
+                                } else {
+                                    Log.e("ChatScreen", "Error al eliminar mensaje: ${result.exceptionOrNull()?.message}")
+                                }
+                            }
+                        }
+                        showDeleteDialog = false
+                        messageToDelete = null
+                    }
+                ) {
+                    Text("Eliminar", color = Color.Red)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showDeleteDialog = false
+                    messageToDelete = null
+                }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
     Scaffold(
         containerColor = Color(0xFFF9FAFB),
         topBar = {
@@ -223,7 +269,15 @@ fun ChatScreen(
                         }
                     }
                     items(messages) { message ->
-                        ChatBubble(message)
+                        ChatBubble(
+                            message = message,
+                            onLongClick = {
+                                if (message.isFromMe) {
+                                    messageToDelete = message
+                                    showDeleteDialog = true
+                                }
+                            }
+                        )
                     }
                 }
             }
@@ -288,8 +342,9 @@ fun ChatScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ChatBubble(message: ChatMessage) {
+fun ChatBubble(message: ChatMessage, onLongClick: () -> Unit) {
     val alignment = if (message.isFromMe) Alignment.CenterEnd else Alignment.CenterStart
     val bubbleColor = if (message.isFromMe) Color(0xFF2575FC) else Color(0xFFE5E7EB)
     val textColor = if (message.isFromMe) Color.White else Color(0xFF111827)
@@ -306,7 +361,12 @@ fun ChatBubble(message: ChatMessage) {
         Surface(
             color = bubbleColor,
             shape = shape,
-            modifier = Modifier.widthIn(max = 280.dp)
+            modifier = Modifier
+                .widthIn(max = 280.dp)
+                .combinedClickable(
+                    onLongClick = onLongClick,
+                    onClick = {}
+                )
         ) {
             Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                 message.content?.let {
