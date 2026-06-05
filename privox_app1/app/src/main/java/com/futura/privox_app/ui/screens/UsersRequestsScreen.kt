@@ -341,6 +341,12 @@ fun UsersRequestsScreen(
                             fontSize = 20.sp,
                             color = Color(0xFF111827)
                         )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = displayName,
+                            color = Color(0xFF6B7280),
+                            fontSize = 13.sp,
+                        )
                     }
 
                     Row(
@@ -367,7 +373,7 @@ fun UsersRequestsScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Close,
+                                    imageVector = Icons.Default.Cancel,
                                     contentDescription = "Rechazar solicitud",
                                     tint = Color(0xFFEF4444)
                                 )
@@ -391,7 +397,7 @@ fun UsersRequestsScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Add,
+                                    imageVector = Icons.Default.Check,
                                     contentDescription = "Aceptar solicitud",
                                     tint = Color(0xFF16A34A)
                                 )

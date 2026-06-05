@@ -134,6 +134,12 @@ fun WelcomeScreen(
                             fontSize = 20.sp,
                             color = Color(0xFF111827)
                         )
+                        Text(
+                            text = displayName,
+                            color = Color(0xFF6B7280),
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
                         Spacer(modifier = Modifier.height(8.dp))
 
                         Row(
@@ -159,13 +165,6 @@ fun WelcomeScreen(
                                 fontWeight = FontWeight.Bold
                             )
                         }
-                        
-                        Text(
-                            text = displayName,
-                            color = Color(0xFF6B7280),
-                            fontSize = 13.sp,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
                     }
                 }
             }
@@ -477,6 +476,12 @@ fun ContactItem(
                         fontWeight = FontWeight.Bold,
                         fontSize = 20.sp,
                         color = Color(0xFF111827)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = displayName,
+                        color = Color(0xFF6B7280),
+                        fontSize = 13.sp,
                     )
                 }
 
