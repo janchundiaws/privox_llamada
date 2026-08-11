@@ -3,6 +3,11 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 const IMAGES = [
   {
+    src: '/assets/perfil.png',
+    title: 'Perfil de usuario',
+    description: 'Perfil de usuario de Privox'
+  },
+  {
     src: '/assets/secure_calls.png',
     title: 'Llamadas Seguras con Distorsión',
     description: 'Comunícate sin revelar tu identidad real. Aplica filtros de voz como robot, hombre, mujer o alienígena en tiempo real.'
@@ -15,7 +20,12 @@ const IMAGES = [
   {
     src: '/assets/contacts_interface.png',
     title: 'Control Absoluto de tu Identidad',
-    description: 'Regístrate de manera 100% anónima con claves criptográficas. Controla quién puede llamarte y mantén tus contactos bajo llave.'
+    description: 'Regístrate de manera anónima con claves criptográficas. Controla quién puede llamarte y mantén tus contactos bajo llave.'
+  },
+  {
+    src: '/assets/distorsion_voz.png',
+    title: 'Distorsión de Voz',
+    description: 'Comunícate sin revelar tu identidad real. Aplica filtros de voz como robot, hombre, mujer o alienígena en tiempo real.'
   }
 ];
 
@@ -91,7 +101,7 @@ export default function ScreenshotCarousel() {
           <ChevronRight size={24} />
         </button>
       </div>
-
+      <br></br>
       <div style={{ textAlign: 'center', maxWidth: '600px', margin: '0 auto' }}>
         <h3 style={{ marginBottom: '0.5rem', color: 'var(--text-primary)' }}>
           {IMAGES[activeIndex].title}
